@@ -1,6 +1,6 @@
 # 文档规范与索引
 
-本目录只保存对当前开发仍有直接价值的长期信息。工作流默认采用**最小活动上下文**；历史流程和已完成任务优先通过 Git 历史追溯，而不是让新 Agent 重读长篇 markdown。
+本目录只保存对当前开发仍有直接价值的长期信息。工作流采用**最小活动上下文 + Fast-First Model Routing**：高 TPS 执行模型负责普通开发，强模型只在复杂决策或高风险审查时按需介入。
 
 项目当前工作规则见 [`../AGENTS.md`](../AGENTS.md)，当前工作流见 [`development-plan.md`](development-plan.md)。
 
@@ -15,6 +15,8 @@
 以下文件默认不整份读取：`verification.md`、`decisions.md`、历史需求版本、完整任务历史。
 出现具体疑点时先搜索定位，再局部读取。
 
+模型升级不会改变这条规则：Strong Reasoner 也只接收解决当前决策所需的最小 Decision Packet，不因能力更强而扩大默认读取范围。
+
 ## 2. 文档职责
 
 | 文档 | 用途 | 默认读取 |
@@ -28,7 +30,7 @@
 | [`decisions.md`](decisions.md) | 有长期影响的重要决定 | 有具体决策疑点时 |
 | [`verification.md`](verification.md) | 有交付价值的验证证据 | 验收/发布时按需 |
 | [`setup.md`](setup.md) | 本机运行说明 | 运行/部署相关时 |
-| [`development-plan.md`](development-plan.md) | 当前 Fast/Complex Path 工作流 | 需要调度规则时 |
+| [`development-plan.md`](development-plan.md) | Fast-First 模型路由与 Complex Path | 需要调度规则时 |
 
 ## 3. 当前权威版本
 
@@ -39,7 +41,7 @@
 
 ## 4. 需求与契约
 
-需求或契约发生**实质变化**时才更新长期文档。
+需求或契约发生实质变化时才更新长期文档。
 
 普通实现修复、样式微调、局部重构如果不改变长期语义，不为了留下流水而更新 requirements / contracts / decisions。
 
@@ -53,6 +55,8 @@
 - 复杂、跨会话、阻塞或需要长期人工验证的工作才进入 tasks；
 - 完成后的详细过程依赖 Git 历史追溯；
 - 不在 tasks 中长期堆叠 session ID、模型切换、重复测试输出和旧流程实验。
+
+Strong Reasoner 的一次咨询通常不构成独立任务；只有它对应长期阻塞或独立交付物时才需要任务化。
 
 ## 6. 验证证据
 
@@ -88,4 +92,4 @@ AI 不得因为一次执行偏好自动修改：
 - 关键问题关闭；
 - 未验证项被显式列出并被有权者接受。
 
-Fast Path 简化的是**开发调度成本**，不是降低产品交付标准。
+Fast-First 简化的是开发调度和模型成本，不降低产品交付标准。
