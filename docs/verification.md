@@ -8,19 +8,26 @@
   **v0.14（UX022）候选 `bin-v14/` 已由 T052 构建并经主代理 2026-10-04 独立验收接受**，
   主代理 2026-10-04 独立验收接受 T041–T047（T047 最终 **963/0**、smoke 0）与 T050（bin-v13 重建、1030/0、smoke 0）。
   主代理已在授权内本地升级：`launch.ps1 -OutputDir bin-v14 -PreviousProcessId 2268` → 旧进程 CLOSED（exit 0）、
-  LAUNCHED pid 10600 `D:\ark_left\bin-v14\ark_left.exe`；`start.cmd` 现指向 `bin-v14`（T052）。
-  正式 `bin` 仍 v0.2、历史候选未覆盖；T048 / T051 / T052-DOC 为纯文档收尾，**未改源码 / 脚本 / 二进制**。
+  LAUNCHED pid 10600 `D:\ark_left\bin-v14\ark_left.exe`（**当前仍运行该 pid 10600**）。
+  **v0.15（UX023）候选 `bin-v15/` 已由独立验收 `general` 新会话 `ses_efa9662e0ffe2FnSqf1hyzruaR`
+  构建 / 验证并经主代理 2026-10-04 接受代码与自动检查**：`build.ps1 -OutputDir bin-v15` 成功、
+  隔离单测 **1160/0**、隔离 `verify-interaction.ps1` 通过、`git diff --check` 通过；入口改为
+  `launch.ps1 -OutputDir bin-v15`、`start.cmd` 现指向 `bin-v15`（入口实施 `ses_efa91a0b9ffeAiEUuBNk4jt1OD`；
+  入口新 `general` 会话 `ses_efa905d9fffeJZ0cVrtvgDylgo` 复跑隔离 launcher **20/20** suffix dbcf614f exit 0）。
+  **真实升级尚未执行**：当前仍运行 `bin-v14` PID 10600；正式 `bin` 仍 v0.2、历史候选未覆盖；
+  T048 / T051 / T052-DOC 为纯文档收尾，**未改源码 / 脚本 / 二进制**。
 - 需求基线：`v0.1`（Q-001 已由用户确认关闭）。
   交互改进层 **v0.2 done**；**v0.3（UX011）368/368**；**v0.4（UX012）518/518**；
   **v0.5（UX013）T032 532/532**；v0.6–v0.13（UX014–UX021）由主代理独立验收接受 T041–T047、T050
   （538/0、668/0、732/0、820/0、launcher 20、906/0、最终 963/0、1030/0）；
   **v0.14（UX022）由主代理独立验收接受 T052**（bin-v14 单测 **1088/0**、smoke 0、8/20 项）；
+  **v0.15（UX023）由主代理 2026-10-04 接受 T057**（bin-v15 隔离单测 **1160/0**、隔离 `verify-interaction.ps1` 通过、`git diff --check` 通过）；
   Q005 CLOSED，Q006 CLOSED（T031 闭环）；T007 人工仍 pending，系统 Gate 未通过；
   见下方历史 T027 / T031 / T032 与文末新增「T052 主代理 UX022 接管独立验收记录」。
 - 历史 v0.4 T031 构建命令：`powershell -NoProfile -ExecutionPolicy Bypass -File D:\ark_left\build.ps1 -OutputDir D:\ark_left\bin-v04`（3 exe 成功、无告警；完整结果见 T031 章节）。
-- 启动命令：双击 `start.cmd`（当前 → `launch.ps1 -OutputDir bin-v14`），或运行 `bin-v14\ark_left.exe`（`--show` 可强制显示）。
-  **当前候选**：`start.cmd` 现指向 `bin-v14`（v0.14，T052 主代理 2026-10-04 已独立验收接受）；正式 `bin` 仍 v0.2、历史候选未覆盖。
-  体验 v0.14 可直接双击 `start.cmd` 或运行 `bin-v14\ark_left.exe --show`，不要同时启动双实例。
+- 启动命令：双击 `start.cmd`（当前 → `launch.ps1 -OutputDir bin-v15`），或运行 `bin-v15\ark_left.exe`（`--show` 可强制显示）。
+  **当前候选**：`start.cmd` 现指向 `bin-v15`（v0.15 UX023，T057 主代理 2026-10-04 已接受代码与自动检查；**真实升级尚未执行**）；正式 `bin` 仍 v0.2、历史候选未覆盖。
+  体验 v0.15 可直接双击 `start.cmd` 或运行 `bin-v15\ark_left.exe --show`，不要同时启动双实例。
   主代理在本轮授权内**实际关闭旧 PID 2268** 并启动 `bin-v14`（pid 10600）；v0.13（T050，PID 9160 → 15260）与 T048（PID 15796 → bin-v12）升级记录保留为历史（见 [`../README.md`](../README.md) 启动说明）。
 - 历史 v0.4 T031 测试命令：隔离 `ARK_LEFT_STATE_DIR=D:\ark_left\bin-v04\t031-main-state` 后执行 `D:\ark_left\bin-v04\ark_left-tests.exe`：
   **passed 518 / failed 0，退出 0**（env 已恢复）。v0.2 最终收尾为 **245** 项；v0.3 为 **368** 项；

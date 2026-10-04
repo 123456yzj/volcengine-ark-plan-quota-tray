@@ -35,6 +35,13 @@ namespace ArkLeft
         public bool AllowOpenGuide;
         public string IdentityHint;     // friendly, privacy-safe identity line
         public bool IdentityUnknown;
+        // T-057: fingerprint of the identity scope the displayed Data belongs to
+        // (null when there is no Data or the Data is not scope-confirmed). This
+        // is the ONLY scope authority for the floating menu's identity-change
+        // detection; the friendly IdentityHint above is display text that can be
+        // identical across a real owner change. Opaque; never surfaced to the UI
+        // or logs.
+        public string ScopeFingerprint;
         // True when Data came from a cross-restart snapshot rather than a fresh
         // query; the footer must then present its time as a last-update time.
         public bool FromCache;
@@ -259,6 +266,9 @@ namespace ArkLeft
                 State = PanelState.ShowingCurrent;
                 PanelView uv = View(snap, "身份未完全确认", null, false, false, false, false);
                 uv.IdentityUnknown = true;
+                // An unconfirmed result must not inherit a stale confirmed scope:
+                // its Data was never verified against this fingerprint.
+                uv.ScopeFingerprint = null;
                 uv.NewData = snap != null;
                 return uv;
             }
@@ -333,6 +343,7 @@ namespace ArkLeft
             v.AllowCopyLogin = copyLogin;
             v.AllowOpenGuide = openGuide;
             v.IdentityHint = _identityHint;
+            v.ScopeFingerprint = data != null ? ConfirmedFingerprint : null;
             v.State = State;
             v.FromCache = _showingCache && data != null;
             if (data == null && State == PanelState.NoData) v.Message = "暂无数据";
@@ -354,6 +365,7 @@ namespace ArkLeft
                                 || status == QuotaStatus.Timeout || status == QuotaStatus.FormatError
                                 || status == QuotaStatus.NotLoggedIn);
             v.IdentityHint = _identityHint;
+            v.ScopeFingerprint = null; // error states never carry a scope
             _current = v;
             return v;
         }

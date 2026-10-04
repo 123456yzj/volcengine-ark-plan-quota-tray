@@ -562,7 +562,7 @@ pending → in_progress → done
 
 ## 子任务 / 交接模板（框架第 7、9 节）
 
-**适用范围**：下列完整模板用于**复杂任务、交接与再委派**；目标明确、影响局部、无关键契约 / 业务歧义的小任务优先**短任务单**（仅目标、可写范围、验收方式 + 必要事实），默认剩余委派层数 `0` 由接收方直接执行，不硬设文件数 / 行数门槛，固定纪律自动继承；唯一项目细则见 [development-plan.md §11](development-plan.md#11-t055-短任务优先派发)。
+**适用范围**：下列完整模板用于**复杂任务与交接**；目标明确、影响局部、无关键契约 / 业务歧义的小任务优先**短任务单**（仅目标、可写范围、验收方式 + 必要事实），由接收方直接执行、不再委派，不硬设文件数 / 行数门槛，固定纪律自动继承；唯一项目细则见 [development-plan.md §11](development-plan.md#11-t055-短任务优先派发)。
 
 下发任务或交接时至少包含：
 
@@ -583,7 +583,6 @@ pending → in_progress → done
 - **问题编号与状态**：Q-XXX / OPEN、DECIDED、CLOSED
 - **主代理接收问题的渠道**：
 - **子代理直接通信渠道 / 依赖代理**（如有）：
-- **再委派**（如有）：有限剩余委派层数（下级减 1）、下级唯一子任务标识 / 父子关联、严格小于父范围的边界、文件所有权与停写交接；详见 [development-plan.md §10](development-plan.md#10-t-054-有界再委派规范)
 - **共享记录位置**：关键结论、决定与版本写入何处
 - **交接记录路径**：状态持久化文件位置（见下方交接要点）
 - **关键结论同步**：需同步给哪些受影响代理、何时确认采用版本
@@ -594,12 +593,14 @@ pending → in_progress → done
 **已验证 / 未验证**部分、**失败及已尝试方案**、**未决问题**、**下一步**、
 **工作区现状与写入归属**。
 
-**另须包含**：读取窗口摘要、上下文预算与当前度量（或"不可见"）、触发 `NEEDS_HANDOFF` 的原因；会话与逻辑任务累计返修轮次。若发生**有界再委派**，另记下级真实 session / 结果 / 已测未测 / blocked 的逐级汇总；细则见 [development-plan.md §10](development-plan.md#10-t-054-有界再委派规范)。
+**另须包含**：读取窗口摘要、上下文预算与当前度量（或"不可见"）、触发 `NEEDS_HANDOFF` 的原因；会话与逻辑任务累计返修轮次。执行者不再委派，背景不足由主代理补齐。
 
 > 对齐要求：子 Agent 需能用自己的话复述"需求编号 + 范围 + 验证方式"才算确认，
 > 而不是仅回复"收到"；本模板与规范的一致性由 [`README.md`](README.md) 约束。
 
 ## T053 / T054 有界再委派流程记录（2026-10-04，纯规范 / 静态配置，主代理已接受）
+
+> **历史适用说明**：以下 T053–T060 记录保留实际执行者、会话与检查事实；其中固定实施代理顺序、再委派与每次编辑委派验收条款已被 T061 清理覆盖，不构成现行指令。T060 的交付边界、真实证据与 DoD 要求继续有效。
 
 > 状态：`done`（**仅规范 / 静态配置验收**，非真实嵌套运行或产品交付）。T053 / T054 均由 ds41-writer 执行；主代理已独立审阅并接受规则与静态解析，**真实嵌套委派未测**（运行会话需退出重启加载）。任务表 / 现有 T041–T052 / T007 / 系统 Gate 状态不变。
 
@@ -613,3 +614,55 @@ pending → in_progress → done
 > 状态：`recorded`（主代理 2026-10-04 已审阅接受**规则设计**，**仅文档静态审阅**、**重启后实际运行未验证**；非产品交付）。用户本轮批准"小任务优先简短派发"。
 > 范围（11 文件 = 8 项）：全局 `file-writing-policy.md` + 4 个 agent definition + 外部框架 `multi-agent-development-framework.md`；项目 `AGENTS.md`、`docs/development-plan.md`（新增 **§11 唯一项目细则**）、`docs/tasks.md`、`docs/README.md`、`docs/decisions.md`（新增 **Q-008**）。**不改业务 / UI / 契约 / 源码，不跑应用，不重启 OpenCode，不改 JSON。**
 > 由 ds41-writer 直接执行，真实 session `ses_efafe59a7ffegKpj218dji30pb`，**返修 1/2、逻辑累计 1**（剩余委派深度 `0`）。规则要点：主代理先按复杂度分流；小任务用短任务单；默认剩余层数 `0` 直接执行，省略层数不阻塞；仅明确允许再委派才需显式非负预算且 `>0` 才能下派；复杂 / 交接 / 再委派用完整模板；固定纪律自动继承；需求 / 契约实质变化仍走基线。**Q-008 仅限此次规则落盘 + 文档静态审阅为 `CLOSED`；重启后实际运行未验证；Q-007 状态不变。**
+
+## T056 调度与委派验收规范（2026-10-04，纯规则同步，主代理已接受）
+
+> 状态：`done`（**仅本次流程规则 / 文档静态验收**，非产品交付、未做应用测试 / 重启加载 / 权限硬拦截验证；T056-ACCEPT 独立验收通过、主代理接受）。用户本轮批准：主代理调度、定义明确测试 / 验收标准、核验报告并最终接受；实施后（**含小改动**）由主代理**新开子代理**执行测试验收，**不复用实施 task_id**，**不固定验收模型、不要求与实施不同模型**。最小职责 = **主代理 / 实施 / 验收**三类，同类型可反复新开会话调用、**无需每任务新定义类型**；实施沿用既有 writer 顺序，验收复用现有 `general` 路由（**仅当前路由，不锁模型、不新建 agent 定义**），**只读默认**、准许范围内检查与正常测试产物。
+> 范围（**仅 7 个文件**）：全局 `file-writing-policy.md`；外部框架 `multi-agent-development-framework.md`（§2 / §7 / §8）；项目 `AGENTS.md`、`docs/development-plan.md`（§1 / §11 / 新增 **§12 唯一项目细则**）、`docs/README.md`（§5 / §6）、`docs/tasks.md`、`docs/decisions.md`（新增 **Q-009**）。**不改业务 / UI / 契约 / 源码 / JSON，不新增 agent 定义，不跑应用，不重启 OpenCode**；Q-007 / Q-008 **保留**。
+> 由 ds41-writer 直接执行，真实会话 `ses_efae42b53ffeNKvkVGfxigpcCw`，首次交付**无返修 0/2、逻辑累计 0**（剩余委派深度 `0`）；实施自测与独立验收**分开记录**。独立验收任务 T056-ACCEPT（`general` 新会话 `ses_efae10071ffeV7bN1flh7LZMWF`）报告**通过（限流程文档静态验收）**：`git status --short` 仅 5 个指定项目 md 改动、逐项 `git diff`、`git diff --check` 无空白错误（仅 LF→CRLF 提示）、`git diff --cached --check` 无输出、7 文件局部读回；主代理核验接受。未做应用测试 / 重启加载 / 权限硬拦截验证；Q-007 / Q-008 保留不变。
+
+## T057 UX023 v0.15 悬浮窗右键精简 + 旁侧「悬浮内容」子菜单（2026-10-04，主代理已独立验收接受）
+
+> 状态：`done`（**主代理 2026-10-04 独立验收接受代码与自动检查**；T007 人工 / 系统 Gate 仍 pending；真实升级未执行，当前仍运行 `bin-v14` PID 10600）。委派深度 `0`，直接执行、未再委派。
+
+- **用户需求**（2026-10-04）：「悬浮窗右键仅设置、退出；点击设置在旁显示内容；简洁命名，周期选择叫悬浮内容。」
+- **冻结交互**：圆圈右键与托盘右键共享菜单顶层**恰好两项**「设置」「退出 ark_left」、**无分隔**；原「查看全部额度」项移除（左键圆圈 / Enter / Space 详情不变）。顶层「设置」为**原生旁侧子菜单**（`ToolStripMenuItem` + 点击显式 `ShowDropDown()`、**不 modal**、屏幕边缘原生反向展开）；子菜单顺序冻结为「悬浮内容 / 锁定位置 / 减少动画 / 悬浮窗归位 / 隐藏或显示悬浮窗」。「悬浮内容」下级为该快照可选（已订阅）套餐 / 周期候选（与设置 modal 同候选集 / 文案），当前项勾选；点击**直接保存并即时生效**，保存失败**保留原值 / 原勾选 + 短安全提示**（圆圈可见 tooltip、隐藏走托盘 balloon 固定文案「悬浮内容未保存」，不回显异常原文），无候选显示禁用「暂无数据」安全空态。详情交互保留：左键 card-only 详情不变；详情右键本地菜单仍「设置」并打开单实例 modal，modal 标签（标题 / 无障碍名 / heading / hint）改「悬浮内容」，保存 / 取消 / 焦点滚动 / 零查询不变。
+- **不变量**：零额外 query；10s / 5min 轮询结构、额度缓存格式 1、floating 选择格式 1、floating 偏好格式 2（只读迁移严格格式 1）、身份 scope 防护、无数据安全空态均不变；不使用全局热键 / 输入注入。
+- **可写范围**：`src/TrayApp.cs`（共享菜单构建 / Opening / 悬浮内容同步 / 保存失败通知 / test hooks / cleanup）、`src/FloatingQuotaForm.cs`（默认菜单重建 / 悬浮内容构建与选择 / modal 标签 / 保存失败事件 / 选择复用）、`tests/QuotaTests.cs`（旧菜单索引断言迁移 + 新增 UX023 用例）、`src/Program.cs`（0.15.0.0）、`launch.ps1`（默认 `bin-v15`、oldDir 加 `bin-v14`）、`start.cmd`（`bin-v15`）、`README.md`、`docs/verification.md`、`docs/requirements/interaction-improvements.md`、`docs/tasks.md`。
+- **验收标准**：顶层精确 2 项；「设置」点击旁侧展开且不 modal；悬浮内容选中 / 切换保存成功即时生效、失败回滚、无数据安全空态、全程零 query；锁定 / 减少动画 / 归位 / 显隐与详情 modal 均可继续工作；退出 cleanup。实际 `build.ps1 -OutputDir bin-v15`、隔离状态运行 `ark_left-tests.exe`、`--smoke-test`、`tests/verify-interaction.ps1` 与 `tests/verify-launcher.ps1`（`-OutputDir bin-v15`）；测试基于行为改掉旧索引假设。**不触碰真实进程；最终真实启动由主代理执行。**
+- **验收与未测**：独立验收 `general` 新会话 `ses_efa9662e0ffe2FnSqf1hyzruaR` 实际执行 `build.ps1 -OutputDir bin-v15` 成功、隔离单测 **1160/0**、隔离 `verify-interaction.ps1` 通过、`git diff --check` 通过。入口变更实施 `ses_efa91a0b9ffeAiEUuBNk4jt1OD`（`launch.ps1` 默认 `bin-v15` / oldDir 加 `bin-v14`、`start.cmd` → `bin-v15`）；入口新 `general` 新会话 `ses_efa905d9fffeJZ0cVrtvgDylgo` 复跑隔离 launcher **20/20**（suffix `dbcf614f`、exit 0）。缺陷修复：先由独立验收 `ses_efaa730c9ffe24CFpFpx4B86Qe` 发现相同 IdentityHint 不同 owner 导致旧候选保存，后由 `ses_efa9a928affejHIpK0Jx0dOh5K` 传递权威 scope fingerprint 修复，另 `ses_efabff984ffeOFfSEWbw1I2lNr` 两轮返修修理菜单释放与同 scope 刷新。真实人工点击 / 视觉 / 多屏 DPI / 托盘 balloon 与 T007 真实托盘 / CLI / 多屏仍 pending；**真实升级尚未执行，当前仍运行 `bin-v14` PID 10600、正式 `bin` 仍 v0.2，系统 Gate 未通过；入口已指向 `bin-v15`，不写已实际升级**。`docs/contracts.md` 旧共享菜单描述未在本任务范围内改写（主代理可另行收尾）。某验收代理文字声称 task 入口不可用，与上述实际新 task 会话及执行矛盾，**不作为客观事实记录**。
+
+## T058 文件写入代理路由清理（2026-10-04，用户明确要求，主代理已核验接受静态配置清理）
+
+> 状态：`done`（**仅限本轮规则 + 静态配置验收**，非产品交付；**配置需退出重启加载后生效，未声称热更新**）。用户 2026-10-04 明确要求；主代理核验全局两 agent 定义、`policy`、项目当前规则与实际差异后接受静态配置清理。实施会话 `ses_efad191c8ffeH6WzAmlfUw1jrx`（第一轮返修 1/2、逻辑累计 1）；独立验收首次 `general` 会话 `ses_efacaa838ffeuQHFmKxZNzGFTM` 报**需返修**（唯一坏相对链接，已改纯代码路径），第一轮返修后新 `general` 会话 `ses_efac8aa98ffew6wXO9tKC0ittG` 报**通过**（限静态复核）。委派深度 `0`，直接执行、未再委派。**并行 T057 UX023 状态不碰。**
+> **编号说明**：brief 原定 `T057`，但 `T057` 已被上方「UX023 v0.15 悬浮窗右键精简」占用；为保持 `T-XXX` 唯一，本清理记录顺延为 `T058`（逻辑任务编号与执行会话 ID 分离），待主代理确认。
+
+- **用户要求**：清理 `glm-implementer`、`sol-writer` 两个旧代理定义；将 `ds41-writer` 重命名为 `ds41-implementer`；所有手工编辑（代码、纯文档 / 配置）先 `ds41-implementer`，失败 / 无响应 / 模型不可用并说明后回退 `sol-implementer`；验收沿用 `general`；小任务简短派发、默认深度 `0`、有界再委派、独立验收保持不变。
+- **已改文件（全局）**：新增 `%USERPROFILE%/.config/opencode/agents/ds41-implementer.md`（最小移植并扩展定位为源码 / 文档 / 配置手工写入 + 必要自测）；改 `agents/sol-implementer.md`（`task` 白名单与路由顺序）；删除 `agents/ds41-writer.md` / `agents/glm-implementer.md` / `agents/sol-writer.md`；改 `file-writing-policy.md`（生效路由）；改外部框架 `%USERPROFILE%/multi-agent-development-framework.md`（§9.2 当前模型顺序 / 路由条）。
+- **已改文件（项目）**：`AGENTS.md`（角色 / 路由）、`docs/development-plan.md`（§10 条 7 / §12 条 8）、`docs/decisions.md`（新增 **Q-010** + 覆盖说明；Q-007–Q-009 历史保留）、`docs/tasks.md`（本记录）。`docs/README.md` 无 GLM / `ds41-writer` / `sol-writer` 失效引用，未改。
+- **范围边界**：**未改** `opencode.json`、plugins GLM 后端基础设施、应用代码 / 构建产物 / 运行进程；未改既有历史决策 / 任务 / 真实执行者名称。
+- **独立验收结果**（主代理另开 `general` 新会话，限静态复核）：agent 文件数量 / 新名字、现行 `task` 白名单、现行路由无失效引用、`opencode agent list` 静态解析、`git diff --check` 均符合预期；白名单为 `'*': deny` 后仅 allow `ds41-implementer, sol-implementer, explore, general`。首次验收发现 Q-010 生效版本列唯一坏相对链接 `docs/file-writing-policy.md`，已返修为纯代码路径；**未跑应用测试**。
+- **未测**：配置退出重启加载后的实际生效 / 真实委派 / 权限硬拦截；本轮未做应用测试。
+
+## T059 上下文检索代理试行设计（2026-10-04，用户批准试行，静态验收 accepted）
+
+> 状态：`accepted`（**仅限流程规则静态验收**，非产品交付；**未做应用测试 / 构建 / 运行时效果 / 成本验证**）。用户 2026-10-04 批准上下文检索代理试行设计；主代理落地 `AGENTS.md` 角色链接、`docs/development-plan.md` **§13** 与本记录。
+> 实施 session `ses_efac55411ffelvNlTsMXaH8LzA`；独立验收 `general` session `ses_efac3f670ffernzIHTajLYeT8v` **通过**（只读三处增量 + `git diff --check` 指定三文件无空白错误、仅 LF 提示；未构建 / 应用 / 成本 / 运行时），主代理核验后接受。
+> 试点 `T059-CONTEXT`：真实 session `ses_efac7fb03ffeUdnVDhVJ8F5o3t`（`explore`）；主代理实际收到定位 / 测试名称与未完成代码提示；**首报告截断、补充一次（无新读取）**；`explore` 自报 **10 次调用**，精确字符不可见，三文件状态 / hash 已查；**主代理尚未核验 token 成本**，**不声称节省或菜单验收**。
+> **T057 已由主代理 2026-10-04 独立验收接受代码与自动检查**（`bin-v15` 构建成功、隔离单测 1160/0、隔离 `verify-interaction.ps1` 通过、`git diff --check` 通过），此前「已实施自测 / 暂停未完成未测」已纠正为已接受。T057 实施期间调用量观察：首次实施首改前 **18 calls / 89222 chars**、修复缺陷包 **24 calls**（字符不可准确计量），**均超过 T059 默认试点收敛建议，不声称 token 下降**。
+
+## T060 派发边界核对规则（2026-10-04，ds41-implementer 执行，静态验收 accepted）
+
+> 状态：`accepted`（**仅限流程规则 / 文档静态改动验收**，非产品交付；**未做应用测试 / 构建 / 重启加载 / 运行时效果**）。由 ds41-implementer 直接执行，真实会话 `ses_efa65e3afffev3ljnsdpad9TYA`（同包返修 1/2，修正 AGENTS 短引用与 tasks 执行者），委派深度 `0`、未再委派。
+> 目标：不改需求基线、不改产品代码，在**现有任务边界**上明确主代理**每次派发前核对**：(1) 一次派发一个**可独立判定成败的交付结果**，不按文件数硬切；可写范围与直接必需的测试 / 当前状态文档按权威索引**一次对齐**，必要事实只给已核实结论；实施 / 验收 / 真实部署各有完成条件。(2) 验收命令区分**必跑 / 条件检查 / 仅引用已有证据**，不写模糊"必要时"；验收 brief **不扩充实施冻结标准**，缺额外证据由主代理定位。(3) 再次派发前分类：**原标准未达 → 原包有限返修累积轮数**；**已冻结未派发的独立交付物 → 新有界包（不靠换 session 重置预算）**；**范围外 / 验收后新发现 → 后续任务，不因"顺手"续做**。(4) 收口写**已接受子交付 / 未完成 / 未测**，**整任务 DoD 未满足不标 done**；验收不变相无限扫描或重定义通过标准；**关键安全缺陷按原标准核验 / 决策，不以停点掩盖**。
+> 范围（**仅 3 文件**）：`AGENTS.md`（『文件写入委派』一条短引用）、`docs/development-plan.md`（§11 追加 T060 条 8–11；§12 条 4 一处验收边界）、`docs/tasks.md`（本记录）。**不改业务 / UI / 契约 / 源码 / 全局配置**；§11 短任务优先、§12 独立验收、§10 有界再委派原条款**不被覆盖**。
+- **自检**（实际执行）：`git diff --check -- AGENTS.md docs/development-plan.md docs/tasks.md` → exit 0、**无空白错误**（仅 Git `LF will be replaced by CRLF` 提示）；三文件局部 `git diff` 复核**仅上述增量**，未动既有未提交修改。
+- **独立验收**（新独立 `general` session `ses_efa637c9fffeZO2qlm3gJtcnvK`）：静态验收**通过**；核对 `AGENTS.md`、`docs/development-plan.md` §11/§12、`docs/tasks.md` 局部 diff，`git diff --check -- AGENTS.md docs/development-plan.md docs/tasks.md` 成功无空白错误（仅 LF→CRLF 提示）；未运行产品测试 / 构建 / 重启加载 / 运行时效果，主代理核验局部文件后接受 T060 仅限项目文档规则静态改动，T057/T007 及系统 Gate 不变。
+- **未测**：应用测试 / 构建 / 重启加载 / 运行时效果；独立静态验收已完成（见上）。
+
+## T061 项目实施代理与规范清理（2026-10-04）
+
+- **状态**：`done`（仅项目规范静态清理，主代理已核对接受）。用户要求继续清理实施代理；由当前主代理直接编辑，不调用实施 / writer 代理，不再委派验收。
+- **范围**：`AGENTS.md`、`docs/README.md`、`docs/development-plan.md`、`docs/decisions.md`、`docs/tasks.md`。项目 `opencode.json` 已在前一轮按用户明确授权删除，本轮不重建；项目 `.opencode` 未发现代理定义。全局配置、应用代码与现有其他改动不在范围内。
+- **结果**：清理固定模型 / 实施代理优先与回退链、强制手工写入委派、再委派层数与模板字段、每次编辑强制委派验收；通用子代理按需使用实际可用角色。保留业务基线、历史执行与证据、文件所有权、局部补丁、任务边界及真实验收要求。
+- **实际检查**：Windows PowerShell，Git 工作区 `dirty`；主代理定向检索并局部读回现行规则，旧代理名称残留为历史记录或停用说明，无旧 §10 锚点引用；Glob 未发现项目 `.opencode` 定义或 `opencode.json*`，`Test-Path` 根目录 `opencode.json` 返回 `False`。审阅相关差异并执行 `git diff --check -- AGENTS.md docs/README.md docs/development-plan.md docs/decisions.md docs/tasks.md`，exit 0，无空白错误（仅 LF→CRLF 提示）。证据集中本条；未运行应用构建 / 测试或重启加载验证，本次为项目文档静态清理。

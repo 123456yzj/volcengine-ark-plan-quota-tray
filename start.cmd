@@ -2,7 +2,7 @@
 setlocal
 set "ROOT=%~dp0"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%launch.ps1" -OutputDir bin-v14
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%launch.ps1" -OutputDir bin-v15
 set "LAUNCH_RC=%ERRORLEVEL%"
 if not "%LAUNCH_RC%"=="0" (
   echo ark_left launch failed. See LAUNCHER-ERROR above.

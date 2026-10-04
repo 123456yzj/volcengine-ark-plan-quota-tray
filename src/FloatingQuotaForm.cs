@@ -1019,8 +1019,10 @@ namespace ArkLeft
             // (never blind CenterScreen on the primary display).
             StartPosition = FormStartPosition.Manual;
             AutoScaleMode = AutoScaleMode.None;
-            Text = "设置悬浮窗显示";
-            AccessibleName = "设置悬浮窗显示";
+            // v0.15 UX023: the period-selection concept is named "悬浮内容"
+            // consistently with the shared menu's submenu label.
+            Text = "悬浮内容";
+            AccessibleName = "悬浮内容";
             BackColor = UiStyle.Canvas;
             KeyPreview = true;
 
@@ -1052,7 +1054,7 @@ namespace ArkLeft
             header.MouseMove += HeaderMouseMove;
             header.MouseUp += HeaderMouseUp;
             Label heading = new Label();
-            heading.Text = "悬浮窗显示";
+            heading.Text = "悬浮内容";
             heading.Font = F(10f, true);
             heading.ForeColor = Color.White;
             heading.TextAlign = ContentAlignment.MiddleLeft;
@@ -1084,7 +1086,7 @@ namespace ArkLeft
             Controls.Add(host);
 
             Label hint = new Label();
-            hint.Text = "选择悬浮圆圈显示的套餐 / 周期：";
+            hint.Text = "选择悬浮内容：";
             hint.Font = F(9f, false);
             hint.AutoSize = false;
             hint.ForeColor = UiStyle.Navy;
@@ -1400,6 +1402,31 @@ namespace ArkLeft
         private ToolStripMenuItem _lockItem;
         // v0.9 UX017: checkable "减少动画" item, right after the lock item.
         private ToolStripMenuItem _motionItem;
+        // v0.15 UX023: default menu (used when no owner shares one) mirrors the
+        // new top level [设置(子菜单), 退出]: the 设置 submenu holds the
+        // 悬浮内容 chooser plus the existing toggles.
+        private ToolStripMenuItem _settingsItem;
+        private ToolStripMenuItem _contentItem;
+        private ToolStripMenuItem _homeItem;
+        private ToolStripMenuItem _toggleItem;
+        // v0.15 UX023: observable "设置 clicked -> native side dropdown" intent
+        // (no real popup is created offline, where the strip is never shown).
+        private bool _settingsDropDownRequested;
+        // v0.15 UX023: bumped whenever ApplyModelView replaces the candidate
+        // list, so a menu opened over an older snapshot can never save an item
+        // that is no longer backed by the current entries (same key included).
+        private int _contentGeneration;
+        // Deterministic release bookkeeping for the rebuilt 悬浮内容 items.
+        private int _contentItemsReleased;
+        // Removed 悬浮内容 items awaiting a safe release. A single shared,
+        // coalesced drain is posted (never one dangling closure per rebuild);
+        // Dispose drains synchronously so nothing is left undisposed.
+        private readonly List<ToolStripItem> _pendingContentItems = new List<ToolStripItem>();
+        private bool _contentDrainPosted;
+        // Candidate / identity signature of the last built menu; an equivalent
+        // refresh (e.g. the 10s poll) must NOT invalidate an open selection.
+        private string _contentSignature;
+        private string _contentIdentitySignature;
         private FloatingSettings _stored;
         private FloatingSettings _selected;
         private List<FloatingEntry> _entries = new List<FloatingEntry>();
@@ -1432,6 +1459,13 @@ namespace ArkLeft
         // surfaces a DISTINCT short tray notification (never the lock-failure
         // wording) while the circle is hidden.
         public event EventHandler MotionSaveFailed;
+        // v0.15 UX023: raised ONLY when a 悬浮内容 menu save fails. The owner
+        // surfaces a DISTINCT short tray notification (never the lock / motion
+        // wording) while the circle is hidden.
+        public event EventHandler ContentSaveFailed;
+        // v0.15 UX023: raised after any 悬浮内容 menu selection attempt so a
+        // shared (tray) submenu can rebuild its checks from the real state.
+        public event EventHandler ContentChanged;
         // v0.5 UX013: forwards the real circle's VisibleChanged. The wrapper's
         // own (1x1) window visibility does not track the circle, so callers must
         // subscribe here to observe show / hide transitions.
@@ -1467,6 +1501,7 @@ namespace ArkLeft
             _circle = new FloatingCircleControl();
             _circle.VisibleChanged += delegate
             {
+                UpdateToggleItemText();
                 if (CircleVisibleChanged != null) CircleVisibleChanged(this, EventArgs.Empty);
             };
             _circle.DetailsRequested += delegate
@@ -1495,25 +1530,223 @@ namespace ArkLeft
 
         private ContextMenuStrip BuildDefaultMenu()
         {
+            // v0.15 UX023: top level is only [设置(子菜单), 退出]; the left
+            // click (details) is unchanged and the default menu never opens the
+            // settings modal. The 设置 submenu expands natively to the side and
+            // holds the 悬浮内容 chooser plus the existing toggles.
             ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Items.Add("查看全部额度", null, delegate { RaiseDetails(); });
-            menu.Items.Add("设置", null, delegate { RaiseSettings(); });
+            _settingsItem = new ToolStripMenuItem("设置");
+            _contentItem = new ToolStripMenuItem("悬浮内容");
+            _settingsItem.DropDownItems.Add(_contentItem);
+            _settingsItem.DropDownItems.Add(new ToolStripSeparator());
             // v0.8 UX016: shared checkable "锁定位置" (same state / handler as
             // the tray menu item; TrayApp syncs via PositionLockChanged).
             _lockItem = new ToolStripMenuItem("锁定位置");
             _lockItem.CheckOnClick = false; // state is owned by the handler
             _lockItem.Click += delegate { TogglePositionLocked(); };
-            menu.Items.Add(_lockItem);
-            // v0.9 UX017: checkable "减少动画" right after the lock item;
-            // same state / handler as the tray menu item.
+            _settingsItem.DropDownItems.Add(_lockItem);
+            // v0.9 UX017: checkable "减少动画"; same state / handler as the
+            // tray menu item.
             _motionItem = new ToolStripMenuItem("减少动画");
             _motionItem.CheckOnClick = false; // state is owned by the handler
             _motionItem.Click += delegate { ToggleReduceMotion(); };
-            menu.Items.Add(_motionItem);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("退出 ark_left", null, delegate { RaiseExit(); });
+            _settingsItem.DropDownItems.Add(_motionItem);
+            // v0.12 UX020: "悬浮窗归位" (moved into the 设置 submenu).
+            _homeItem = new ToolStripMenuItem("悬浮窗归位", null,
+                delegate { RepositionCircleHome(); UpdateToggleItemText(); });
+            _settingsItem.DropDownItems.Add(_homeItem);
+            // v0.13 UX021: show / hide toggle (moved into the 设置 submenu).
+            _toggleItem = new ToolStripMenuItem("隐藏悬浮窗", null,
+                delegate { ToggleCircleForMenu(); });
+            _settingsItem.DropDownItems.Add(_toggleItem);
+            // Explicit native side expansion on click (never a modal). Guarded
+            // so an offline PerformClick on a never-shown strip records the
+            // intent without creating a real popup window.
+            _settingsItem.Click += delegate { RequestSettingsDropDown(); };
+            _settingsItem.DropDownOpening += delegate
+            {
+                PopulateContentMenu(_contentItem);
+                SyncPrefMenuChecks();
+                UpdateToggleItemText();
+            };
+            menu.Items.Add(_settingsItem);
+            menu.Items.Add("退出", null, delegate { RaiseExit(); });
+            PopulateContentMenu(_contentItem);
             SyncPrefMenuChecks();
             return menu;
+        }
+
+        // v0.15 UX023: explicit native side expansion for the 设置 submenu. In
+        // production the strip is visible so ShowDropDown really opens the
+        // native dropdown; offline (never-shown strip) only the intent flag is
+        // recorded, so no orphan popup window is created in tests.
+        private void RequestSettingsDropDown()
+        {
+            _settingsDropDownRequested = true;
+            try
+            {
+                if (_menu != null && _menu.Visible) _settingsItem.ShowDropDown();
+            }
+            catch (Exception) { }
+        }
+
+        // v0.15 UX023: rebuild the 悬浮内容 candidates from the CURRENT
+        // snapshot (called on every submenu open and after a selection). A menu
+        // opened over an old snapshot is re-validated at click time, so a
+        // period that disappears while the menu is open can never be persisted.
+        // Zero query, no modal.
+        public void PopulateContentMenu(ToolStripMenuItem contentItem)
+        {
+            if (contentItem == null) return;
+            ClearContentItems(contentItem.DropDownItems);
+            List<FloatingEntry> candidates = FloatingSelection.SelectableCandidates(_entries);
+            if (candidates.Count == 0)
+            {
+                contentItem.Enabled = false; // no data -> disabled
+                return;
+            }
+            contentItem.Enabled = true;
+            int generation = _contentGeneration;
+            foreach (FloatingEntry entry in candidates)
+            {
+                FloatingEntry captured = entry;
+                ToolStripMenuItem item = new ToolStripMenuItem(DisplayNames.Period(captured.Label));
+                item.CheckOnClick = false; // state is owned by the handler
+                item.Checked = IsCurrentContent(captured);
+                item.Click += delegate { ApplyContentSelection(captured, generation); };
+                contentItem.DropDownItems.Add(item);
+            }
+        }
+
+        // v0.15 UX023: rebuild deterministically releases the old items, but the
+        // release is deferred so an item currently raising its own Click handler
+        // is never disposed mid-handler (a real crash in WinForms). Removed items
+        // go to a single queue and one shared drain is posted; Dispose drains the
+        // queue synchronously, and a late posted drain on an empty queue is a
+        // harmless no-op.
+        private void ClearContentItems(ToolStripItemCollection items)
+        {
+            if (items == null || items.Count == 0) return;
+            for (int i = 0; i < items.Count; i++) _pendingContentItems.Add(items[i]);
+            items.Clear();
+            RequestContentDrain();
+        }
+
+        private void RequestContentDrain()
+        {
+            if (_pendingContentItems.Count == 0) return;
+            if (IsDisposed || Disposing) { DrainPendingContentItems(); return; }
+            if (_contentDrainPosted) return; // one posted drain coalesces them all
+            try
+            {
+                IntPtr h = Handle;
+                GC.KeepAlive(h);
+                if (IsDisposed || Disposing) { DrainPendingContentItems(); return; }
+                _contentDrainPosted = true;
+                BeginInvoke(new Action(delegate
+                {
+                    _contentDrainPosted = false;
+                    DrainPendingContentItems();
+                }));
+            }
+            catch (Exception) { _contentDrainPosted = false; DrainPendingContentItems(); }
+        }
+
+        // Releases every queued item. Safe on an empty queue and safe to call
+        // from Dispose; never touches control state, so a late posted callback
+        // after the form is gone only drains an (empty) list.
+        private void DrainPendingContentItems()
+        {
+            for (int i = 0; i < _pendingContentItems.Count; i++)
+            {
+                try { _pendingContentItems[i].Dispose(); } catch (Exception) { }
+                _contentItemsReleased++;
+            }
+            _pendingContentItems.Clear();
+        }
+
+        private bool IsCurrentContent(FloatingEntry e)
+        {
+            return _selected != null && _selected.ProductKey == e.ProductKey
+                && _selected.PeriodLabel == e.Label;
+        }
+
+        private FloatingEntry FindCurrentContent(string productKey, string label)
+        {
+            foreach (FloatingEntry e in _entries)
+            {
+                if (e.ProductKey == productKey && e.Label == label) return e;
+            }
+            return null;
+        }
+
+        // v0.15 UX023: direct menu selection. Saves FIRST; only a successful
+        // save flips _stored / _selected. A candidate that vanished or became
+        // unavailable while the menu was open is rejected (never saved), and a
+        // failed save keeps the old value plus a short readable hint. Zero
+        // query, never opens a modal.
+        public void ApplyContentSelection(FloatingEntry entry)
+        {
+            // Direct callers use the current candidate source.
+            ApplyContentSelection(entry, _contentGeneration);
+        }
+
+        // The captured generation ties the click to the candidate list it was
+        // built from: any ApplyModelView (new snapshot OR identity switch, same
+        // key included) invalidates it. The entry is then re-validated in the
+        // CURRENT entries before anything is persisted.
+        public void ApplyContentSelection(FloatingEntry entry, int generation)
+        {
+            if (entry == null) return;
+            if (generation != _contentGeneration)
+            {
+                ShowLockHint("悬浮内容不可用");
+                return;
+            }
+            FloatingEntry current = FindCurrentContent(entry.ProductKey, entry.Label);
+            if (current == null || !current.Selectable)
+            {
+                ShowLockHint("悬浮内容不可用");
+                return;
+            }
+            if (IsCurrentContent(current)) return; // same target: skip the save
+            FloatingSettings s = new FloatingSettings();
+            s.Version = FloatingSettingsStore.FormatVersion;
+            s.ProductKey = current.ProductKey;
+            s.PeriodLabel = current.Label;
+            bool saved;
+            try { saved = _save != null && _save(s); }
+            catch (Exception) { saved = false; }
+            if (saved)
+            {
+                _stored = s;
+                _selected = s;
+                UpdateCircleDisplay();
+                ShowLockHint("已切换悬浮内容");
+            }
+            else
+            {
+                ShowLockHint("悬浮内容未保存");
+                if (ContentSaveFailed != null) ContentSaveFailed(this, EventArgs.Empty);
+            }
+            PopulateContentMenu(_contentItem);
+            SyncPrefMenuChecks();
+            UpdateToggleItemText();
+            if (ContentChanged != null) ContentChanged(this, EventArgs.Empty);
+        }
+
+        private void ToggleCircleForMenu()
+        {
+            ToggleCircle();
+            UpdateToggleItemText();
+        }
+
+        // The show / hide toggle label mirrors the real circle state (kept in
+        // sync from the circle VisibleChanged hook and on every submenu open).
+        private void UpdateToggleItemText()
+        {
+            if (_toggleItem == null) return;
+            _toggleItem.Text = CircleVisible ? "隐藏悬浮窗" : "显示悬浮窗";
         }
 
         // Shares the tray menu (TrayApp owns it) with the circle so both show the
@@ -1639,6 +1872,65 @@ namespace ArkLeft
         {
             get { return _motionItem != null && _motionItem.Checked; }
         }
+        // v0.15 UX023 test hooks: the default menu's top level and its 设置
+        // submenu (悬浮内容 chooser + existing toggles).
+        internal bool SettingsDropDownRequestedForTest { get { return _settingsDropDownRequested; } }
+        // v0.15 UX023: count of rebuilt 悬浮内容 items deterministically released.
+        internal int ContentItemsReleasedForTest { get { return _contentItemsReleased; } }
+        internal int ContentGenerationForTest { get { return _contentGeneration; } }
+        internal int DefaultMenuTopCountForTest { get { return _menu == null ? 0 : _menu.Items.Count; } }
+        internal string DefaultMenuTopTextForTest(int i)
+        {
+            return (_menu != null && i >= 0 && i < _menu.Items.Count) ? _menu.Items[i].Text : null;
+        }
+        internal int DefaultMenuSettingsCountForTest
+        {
+            get { return _settingsItem == null ? 0 : _settingsItem.DropDownItems.Count; }
+        }
+        internal string DefaultMenuSettingsTextForTest(int i)
+        {
+            return (_settingsItem != null && i >= 0 && i < _settingsItem.DropDownItems.Count)
+                ? _settingsItem.DropDownItems[i].Text : null;
+        }
+        internal void PerformDefaultMenuSettingsForTest()
+        {
+            if (_settingsItem != null) _settingsItem.PerformClick();
+        }
+        internal int DefaultMenuContentCountForTest
+        {
+            get { return _contentItem == null ? 0 : _contentItem.DropDownItems.Count; }
+        }
+        internal bool DefaultMenuContentEnabledForTest
+        {
+            get { return _contentItem != null && _contentItem.Enabled; }
+        }
+        internal string DefaultMenuContentTextForTest(int i)
+        {
+            return (_contentItem != null && i >= 0 && i < _contentItem.DropDownItems.Count)
+                ? _contentItem.DropDownItems[i].Text : null;
+        }
+        internal bool DefaultMenuContentCheckedForTest(int i)
+        {
+            if (_contentItem == null || i < 0 || i >= _contentItem.DropDownItems.Count) return false;
+            ToolStripMenuItem it = _contentItem.DropDownItems[i] as ToolStripMenuItem;
+            return it != null && it.Checked;
+        }
+        internal void PerformDefaultMenuContentForTest(int i)
+        {
+            if (_contentItem == null || i < 0 || i >= _contentItem.DropDownItems.Count) return;
+            ToolStripMenuItem it = _contentItem.DropDownItems[i] as ToolStripMenuItem;
+            if (it != null) it.PerformClick();
+        }
+        // Expands the default 设置 submenu content (rebuilds 悬浮内容 from the
+        // current snapshot) without a real popup window.
+        internal void OpenDefaultMenuContentForTest()
+        {
+            PopulateContentMenu(_contentItem);
+        }
+        internal string DefaultMenuToggleTextForTest
+        {
+            get { return _toggleItem == null ? null : _toggleItem.Text; }
+        }
         // v0.12 UX020 test hook: a stale details auto-hide flag must be
         // cleared by an explicit re-home.
         internal bool AutoHiddenForDetailsForTest
@@ -1753,9 +2045,53 @@ namespace ArkLeft
         {
             _view = v;
             QuotaSnapshot snap = v == null ? null : v.Data;
-            _entries = FloatingSelection.Build(snap);
+            List<FloatingEntry> built = FloatingSelection.Build(snap);
+            string signature = ContentSignature(built);
+            string identitySignature = IdentitySignature(v);
+            _entries = built;
             _selected = ResolveSelection();
             UpdateCircleDisplay();
+            // A same-semantics refresh (the routine 10s poll) must NOT rebuild
+            // the menu or invalidate a selection the user is making. Only a real
+            // candidate-set change or a real scope change (the PanelView's
+            // ScopeFingerprint / IdentityUnknown, never the display IdentityHint)
+            // bumps the generation and rebuilds; the circle display above is
+            // always refreshed.
+            if (signature == _contentSignature
+                && identitySignature == _contentIdentitySignature) return;
+            _contentSignature = signature;
+            _contentIdentitySignature = identitySignature;
+            _contentGeneration++;
+            PopulateContentMenu(_contentItem);
+            if (ContentChanged != null) ContentChanged(this, EventArgs.Empty);
+        }
+
+        // Stable signature of the SELECTABLE candidate set (key + label in
+        // order). Values / counts may move every poll without changing which
+        // periods a user can pick, so they are deliberately excluded.
+        private static string ContentSignature(List<FloatingEntry> entries)
+        {
+            List<FloatingEntry> candidates = FloatingSelection.SelectableCandidates(entries);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                sb.Append(candidates[i].ProductKey).Append('\u0001')
+                    .Append(candidates[i].Label).Append('\u0002');
+            }
+            return sb.ToString();
+        }
+
+        // T-057: the scope authority of the built menu is the fingerprint of the
+        // identity scope the PanelView's Data belongs to - NOT the friendly
+        // IdentityHint (a real owner change keeps the same hint when type /
+        // region / profile name are unchanged). A null fingerprint means "no
+        // confirmed scope for this Data", which is distinct from every real
+        // fingerprint, so an unconfirmed result can never keep an old-scope
+        // selection valid. The value is opaque and is never rendered or logged.
+        private static string IdentitySignature(PanelView v)
+        {
+            if (v == null) return "";
+            return (v.ScopeFingerprint ?? "") + "\u0003" + (v.IdentityUnknown ? "1" : "0");
         }
 
         private FloatingSettings ResolveSelection()
@@ -2071,6 +2407,10 @@ namespace ArkLeft
             if (disposing)
             {
                 CloseSettings();
+                // Release every queued 悬浮内容 item before the menus go, so no
+                // removed item survives Dispose (a late posted drain then sees an
+                // empty queue and exits safely).
+                DrainPendingContentItems();
                 if (_menu != null) { try { _menu.Dispose(); } catch (Exception) { } _menu = null; }
                 if (_circle != null) { try { _circle.Dispose(); } catch (Exception) { } }
             }

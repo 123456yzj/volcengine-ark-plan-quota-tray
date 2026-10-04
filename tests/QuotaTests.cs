@@ -99,6 +99,7 @@ namespace ArkLeft.Tests
             RepositionHomeUX020Cases();
             DetailsShortcutUX021Cases();
             CardOnlyUX022Cases();
+            FloatingMenuUX023Cases();
 
             Console.WriteLine();
             Console.WriteLine("passed: " + _passed + ", failed: " + _failed);
@@ -281,24 +282,24 @@ namespace ArkLeft.Tests
                 System.Drawing.Rectangle details = app.DetailsBoundsForTest;
                 Check("trayApp.detailsLeftOfCircle", details.Right <= cb.Left, true);
 
-                // The real shared menu items exist and route to the same
-                // zero-query production actions.
-                // v0.12 UX020: menu is 7 -> 8; "悬浮窗归位" sits right after
-                // the motion item and the show/hide toggle shifts from index
-                // 4 to 5 by requirement, not by accident.
-                Check("trayApp.menuPresent", app.MenuItemCountForTest, 8);
-                Check("trayApp.menuHasSettings", app.MenuTextForTest(1), "设置");
-                Check("trayApp.menuHasLock", app.MenuTextForTest(2), "锁定位置");
-                Check("trayApp.menuHasMotion", app.MenuTextForTest(3), "减少动画");
-                Check("trayApp.menuHasHome", app.MenuTextForTest(4), "悬浮窗归位");
-                Check("trayApp.menuHasToggle", app.MenuTextForTest(5), "隐藏悬浮窗");
-                app.PerformMenuForTest(0); // 查看全部额度
+                // v0.15 UX023: the shared top level is only [设置, 退出]; the
+                // existing toggles plus the 悬浮内容 chooser live in the 设置
+                // submenu. The left-click details path is unchanged.
+                Check("trayApp.menuPresent", app.MenuItemCountForTest, 2);
+                Check("trayApp.menuTopSettings", app.MenuTextForTest(0), "设置");
+                Check("trayApp.menuTopExit", app.MenuTextForTest(1), "退出");
+                Check("trayApp.submenuCount", app.MenuSettingsCountForTest, 6);
+                Check("trayApp.menuHasLock", app.MenuSettingsTextForTest(2), "锁定位置");
+                Check("trayApp.menuHasMotion", app.MenuSettingsTextForTest(3), "减少动画");
+                Check("trayApp.menuHasHome", app.MenuSettingsTextForTest(4), "悬浮窗归位");
+                Check("trayApp.menuHasToggle", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
+                app.ShowDetailsForTest(); // left-click details path, zero query
                 System.Windows.Forms.Application.DoEvents();
                 Check("trayApp.menuViewZeroQuery", queries, 0);
-                // Repeat "查看全部额度" while already visible: no re-layout /
-                // flicker (same bounds, still visible), zero query.
+                // Repeat the details action while already visible: no
+                // re-layout / flicker (same bounds, still visible), zero query.
                 System.Drawing.Rectangle before = app.DetailsBoundsForTest;
-                app.PerformMenuForTest(0);
+                app.ShowDetailsForTest();
                 System.Windows.Forms.Application.DoEvents();
                 Check("trayApp.repeatNoFlicker", app.DetailsBoundsForTest, before);
                 Check("trayApp.repeatStillVisible", app.DetailsVisibleForTest, true);
@@ -502,7 +503,7 @@ namespace ArkLeft.Tests
 
                 // Details fallback restore: opening details may auto-hide the
                 // circle; interval stays 10s via _form.Visible.
-                app.PerformMenuForTest(0); // 查看全部额度
+                app.ShowDetailsForTest(); // left-click details path, zero query
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux013.detailsVisible", app.DetailsVisibleForTest, true);
                 Check("ux013.detailsStill10s", app.PollIntervalForTest, 10000);
@@ -575,7 +576,7 @@ namespace ArkLeft.Tests
                     if (!dlg.SaveForTest()) dlg.Close();
                 };
                 saveTimer.Start();
-                app.PerformMenuForTest(1); // 设置 -> real modal
+                app.OpenSettingsForTest(); // settings modal path, zero query
                 saveTimer.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("settingsMenu.zeroAfterSave", queries, 0);
@@ -594,7 +595,7 @@ namespace ArkLeft.Tests
                     if (dlg != null) { dlg.DialogResult = System.Windows.Forms.DialogResult.Cancel; dlg.Close(); }
                 };
                 cancelTimer.Start();
-                app.PerformMenuForTest(1);
+                app.OpenSettingsForTest();
                 cancelTimer.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("settingsMenu.cancelKeeps", app.SelectedPeriodTextForTest, "weekly");
@@ -625,7 +626,7 @@ namespace ArkLeft.Tests
                     if (dlg != null) { dlg.SelectForTest(1); dlg.SaveForTest(); }
                 };
                 saveTimer.Start();
-                app.PerformMenuForTest(1);
+                app.OpenSettingsForTest();
                 saveTimer.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("settingsMenu.noExtraQueryAfterSave", q2, 1);
@@ -864,7 +865,7 @@ namespace ArkLeft.Tests
                     dlg.Close();
                 };
                 closeTimer.Start();
-                app.PerformMenuForTest(1); // 设置 from the shared tray menu
+                app.OpenSettingsForTest(); // settings modal path, zero query
                 closeTimer.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux015.circleOnlyModalSeen", seenDuringModal, true);
@@ -892,7 +893,7 @@ namespace ArkLeft.Tests
                     dlg.Close();
                 };
                 t2b.Start();
-                app.PerformMenuForTest(1);
+                app.OpenSettingsForTest();
                 t2b.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux015.nothingModalSeen", seenNothing, true);
@@ -913,7 +914,7 @@ namespace ArkLeft.Tests
             {
                 app.ApplyViewForTest(SyntheticSample.BuildLarge());
                 app.OpenEntryForTest("tray");
-                app.PerformMenuForTest(0); // 查看全部额度
+                app.ShowDetailsForTest(); // left-click details path, zero query
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux015.detailsShown", app.DetailsVisibleForTest, true);
                 PopupForm details = app.DetailsFormForTest;
@@ -944,7 +945,7 @@ namespace ArkLeft.Tests
                     dlg.Close();
                 };
                 t.Start();
-                app.PerformMenuForTest(1); // 设置 while details visible
+                app.OpenSettingsForTest(); // settings modal while details visible
                 t.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux015.modalReached", reached, true);
@@ -974,7 +975,7 @@ namespace ArkLeft.Tests
                     dlg.Close();
                 };
                 t4.Start();
-                app.PerformMenuForTest(1);
+                app.OpenSettingsForTest();
                 t4.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux015.zeroScrollModal", reached4, true);
@@ -1635,12 +1636,12 @@ namespace ArkLeft.Tests
             {
                 app.HideDetailsForTest();
                 Check("prefs.trayMenuDefaultUnlocked", app.MenuLockCheckedForTest, false);
-                app.PerformMenuForTest(2); // 锁定位置
+                app.PerformMenuLockForTest(); // 锁定位置
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs.trayMenuLocked", app.FloatingLockedForTest, true);
                 Check("prefs.trayMenuChecked", app.MenuLockCheckedForTest, true);
                 Check("prefs.circleMenuChecked", app.CircleMenuLockCheckedForTest, true);
-                app.PerformMenuForTest(2);
+                app.PerformMenuLockForTest();
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs.trayMenuUnlocked", app.FloatingLockedForTest, false);
                 Check("prefs.trayMenuUnchecked", app.MenuLockCheckedForTest, false);
@@ -1663,7 +1664,7 @@ namespace ArkLeft.Tests
             {
                 app.HideDetailsForTest();
                 Check("prefs.hiddenDefault", app.FloatingVisibleForTest, false);
-                app.PerformMenuForTest(2); // 锁定位置 -> injected save fails
+                app.PerformMenuLockForTest(); // 锁定位置 -> injected save fails
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs.hiddenFailKeptUnlocked", app.FloatingLockedForTest, false);
                 Check("prefs.hiddenFailMenuUnchecked", app.MenuLockCheckedForTest, false);
@@ -1677,7 +1678,7 @@ namespace ArkLeft.Tests
                 app.OpenEntryForTest("circle");
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs.visibleNow", app.FloatingVisibleForTest, true);
-                app.PerformMenuForTest(2);
+                app.PerformMenuLockForTest();
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs.visibleFailHint", app.LockHintForTest, "锁定状态未保存");
                 Check("prefs.visibleNoNotifyIntent", app.LockFailNotifyCountForTest, 1);
@@ -1911,34 +1912,34 @@ namespace ArkLeft.Tests
                 unknownForm.HideCircleForTest();
             }
 
-            // ---- shared tray menu: count 8, motion at index 3, home at 4
-            // (UX020), one handler, zero query, poll interval untouched ----
+            // ---- shared tray menu: top level 3, the 设置 submenu holds the
+            // toggles, one handler, zero query, poll interval untouched ----
             int queries = 0;
             using (TrayApp app = new TrayApp(delegate(IProgress<QueryProgress> progress,
                 System.Threading.CancellationToken token)
                 { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
             {
                 app.HideDetailsForTest();
-                Check("prefs2.trayMenuCount", app.MenuItemCountForTest, 8);
-                Check("prefs2.trayMotionItem", app.MenuTextForTest(3), "减少动画");
-                Check("prefs2.trayHomeItem", app.MenuTextForTest(4), "悬浮窗归位");
-                Check("prefs2.trayToggleShifted", app.MenuTextForTest(5), "隐藏悬浮窗");
+                Check("prefs2.trayMenuCount", app.MenuItemCountForTest, 2);
+                Check("prefs2.trayMotionItem", app.MenuSettingsTextForTest(3), "减少动画");
+                Check("prefs2.trayHomeItem", app.MenuSettingsTextForTest(4), "悬浮窗归位");
+                Check("prefs2.trayToggleShifted", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
                 Check("prefs2.trayMotionDefaultUnchecked", app.MenuMotionCheckedForTest, false);
                 Check("prefs2.pollBaseUntouched", app.PollIntervalForTest, 300000);
-                app.PerformMenuForTest(3); // 减少动画
+                app.PerformMenuMotionForTest(); // 减少动画
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs2.trayMotionOn", app.FloatingReduceMotionForTest, true);
                 Check("prefs2.trayMotionChecked", app.MenuMotionCheckedForTest, true);
                 Check("prefs2.circleMenuMotionChecked", app.CircleMenuMotionCheckedForTest, true);
                 Check("prefs2.lockUntouchedByMotion", app.FloatingLockedForTest, false);
-                app.PerformMenuForTest(2); // 锁定位置 still independent
+                app.PerformMenuLockForTest(); // 锁定位置 still independent
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs2.bothOn",
                     app.FloatingLockedForTest && app.FloatingReduceMotionForTest, true);
                 Check("prefs2.bothChecked",
                     app.MenuLockCheckedForTest && app.MenuMotionCheckedForTest, true);
-                app.PerformMenuForTest(3);
-                app.PerformMenuForTest(2);
+                app.PerformMenuMotionForTest();
+                app.PerformMenuLockForTest();
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs2.bothOff",
                     !app.FloatingLockedForTest && !app.FloatingReduceMotionForTest, true);
@@ -1956,7 +1957,7 @@ namespace ArkLeft.Tests
                 delegate(FloatingPreferences p2) { return false; }))
             {
                 app.HideDetailsForTest();
-                app.PerformMenuForTest(3); // 减少动画 -> injected save fails
+                app.PerformMenuMotionForTest(); // 减少动画 -> injected save fails
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs2.hiddenMotionKeptOff", app.FloatingReduceMotionForTest, false);
                 Check("prefs2.hiddenLockKeptOff", app.FloatingLockedForTest, false);
@@ -1970,7 +1971,7 @@ namespace ArkLeft.Tests
 
                 // A failing lock toggle keeps its own wording / counter; the
                 // motion channel is never reused for a lock failure.
-                app.PerformMenuForTest(2); // 锁定位置 -> also fails
+                app.PerformMenuLockForTest(); // 锁定位置 -> also fails
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs2.hiddenLockNotifyText", app.LastLockFailTextForTest,
                     "位置锁定状态未保存");
@@ -1983,7 +1984,7 @@ namespace ArkLeft.Tests
                 app.OpenEntryForTest("circle");
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs2.visibleNow", app.FloatingVisibleForTest, true);
-                app.PerformMenuForTest(3);
+                app.PerformMenuMotionForTest();
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs2.visibleMotionHint", app.LockHintForTest, "动画设置未保存");
                 Check("prefs2.visibleNoMotionNotifyIntent",
@@ -3860,7 +3861,7 @@ namespace ArkLeft.Tests
             {
                 app.ApplyViewForTest(SyntheticSample.BuildLarge());
                 app.OpenEntryForTest("tray");
-                app.PerformMenuForTest(0); // 查看全部额度
+                app.ShowDetailsForTest(); // left-click details path, zero query
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux021.modal.detailsShown", app.DetailsVisibleForTest, true);
                 PopupForm details = app.DetailsFormForTest;
@@ -3897,7 +3898,7 @@ namespace ArkLeft.Tests
                     dlg.Close();
                 };
                 t5.Start();
-                app.PerformMenuForTest(1); // 设置 while details visible
+                app.OpenSettingsForTest(); // settings modal while details visible
                 t5.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux021.modal.reached", reached, true);
@@ -4278,7 +4279,7 @@ namespace ArkLeft.Tests
                 circle.SimulateMouseMoveForTest(new Point(p0.X - 80, p0.Y - 60));
                 circle.SimulateMouseUpForTest(new Point(p0.X - 80, p0.Y - 60));
                 Check("home.appDraggedAway", circle.Bounds.Location != beforeDrag.Location, true);
-                app.PerformMenuForTest(4); // 悬浮窗归位
+                app.PerformMenuHomeForTest(); // 悬浮窗归位
                 System.Windows.Forms.Application.DoEvents();
                 Check("home.appDetailsClosed", app.DetailsVisibleForTest, false);
                 Check("home.appCircleVisible", app.FloatingVisibleForTest, true);
@@ -4287,7 +4288,7 @@ namespace ArkLeft.Tests
                 Check("home.appAtHome", circle.Bounds,
                     FloatingCircleControl.InitialBounds(scr.WorkingArea, DpiUtil.GetScale(scr)));
                 Check("home.appZeroQuery", queries, 0);
-                Check("home.appToggleText", app.MenuTextForTest(5), "隐藏悬浮窗");
+                Check("home.appToggleText", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
                 Check("home.appPollVisible", app.PollIntervalForTest, 10000);
             }
 
@@ -4301,7 +4302,7 @@ namespace ArkLeft.Tests
             {
                 app.HideDetailsForTest();
                 Check("home.hiddenAppPre", app.FloatingVisibleForTest, false);
-                app.PerformMenuForTest(4);
+                app.PerformMenuHomeForTest();
                 System.Windows.Forms.Application.DoEvents();
                 Check("home.hiddenAppShows", app.FloatingVisibleForTest, true);
                 // Not positioned (silent start) -> the primary branch decides
@@ -4312,7 +4313,7 @@ namespace ArkLeft.Tests
                 Check("home.hiddenAppNoSave", app.LockFailNotifyCountForTest, 0);
                 Check("home.hiddenAppZeroQuery", queries2, 0);
                 Check("home.hiddenAppPollVisible", app.PollIntervalForTest, 10000);
-                Check("home.hiddenAppToggleText", app.MenuTextForTest(5), "隐藏悬浮窗");
+                Check("home.hiddenAppToggleText", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
             }
 
             // Settings modal up: a programmatic 归位 click must do NOTHING
@@ -4342,14 +4343,14 @@ namespace ArkLeft.Tests
                     t.Stop();
                     FloatingSettingsForm dlg = FindOpenSettings();
                     if (dlg == null) return; // modal never opened: skip marker
-                    app.PerformMenuForTest(4); // 归位 while the modal owns the loop
+                    app.PerformMenuHomeForTest(); // 归位 while the modal owns the loop
                     clicked = true;
                     during = circle.Bounds;
                     dlg.DialogResult = System.Windows.Forms.DialogResult.Cancel;
                     dlg.Close();
                 };
                 t.Start();
-                app.PerformMenuForTest(1); // 设置 -> real modal (blocks in ShowDialog)
+                app.OpenSettingsForTest(); // settings modal (blocks in ShowDialog)
                 t.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("home.modalClicked", clicked, true);
@@ -4358,6 +4359,329 @@ namespace ArkLeft.Tests
                 Check("home.modalStillDragged", circle.Bounds, dragged);
                 Check("home.modalZeroQuery", queries3, 0);
             }
+        }
+
+        // ---- v0.15 UX023: shared [设置(子菜单), 退出] menu; the 设置 submenu
+        // expands natively to the side (never a modal) and lists 悬浮内容
+        // directly, saving FIRST and only applying a successful save. ----
+        private static void FloatingMenuUX023Cases()
+        {
+            int queries = 0;
+            using (TrayApp app = new TrayApp(delegate(IProgress<QueryProgress> progress,
+                System.Threading.CancellationToken token)
+                { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
+            {
+                app.HideDetailsForTest();
+                Check("ux023.topCount", app.MenuItemCountForTest, 2);
+                Check("ux023.topSettings", app.MenuTextForTest(0), "设置");
+                Check("ux023.topExit", app.MenuTextForTest(1), "退出");
+                Check("ux023.submenuCount", app.MenuSettingsCountForTest, 6);
+                Check("ux023.submenuContent", app.MenuSettingsTextForTest(0), "悬浮内容");
+                Check("ux023.submenuLock", app.MenuSettingsTextForTest(2), "锁定位置");
+                Check("ux023.submenuMotion", app.MenuSettingsTextForTest(3), "减少动画");
+                Check("ux023.submenuHome", app.MenuSettingsTextForTest(4), "悬浮窗归位");
+                Check("ux023.submenuToggle", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
+
+                // Clicking 设置 expands the native side dropdown and NEVER opens
+                // the settings modal (zero query).
+                Check("ux023.settingsNotRequestedYet",
+                    app.MenuSettingsDropDownRequestedForTest, false);
+                app.PerformMenuSettingsClickForTest();
+                System.Windows.Forms.Application.DoEvents();
+                Check("ux023.settingsDropDownRequested",
+                    app.MenuSettingsDropDownRequestedForTest, true);
+                Check("ux023.settingsNoModal", app.SettingsOpenForTest, false);
+                Check("ux023.settingsZeroQuery", queries, 0);
+
+                // Real native expansion: show the isolated strip, click 设置,
+                // and assert the submenu drop-down is really visible beside it
+                // (not merely the intent bool). No desktop input injection; the
+                // finally always closes the popups.
+                ContextMenuStrip strip = app.MenuForTest;
+                ToolStripDropDown drop = app.MenuSettingsForTest.DropDown;
+                try
+                {
+                    strip.Show(new Point(240, 240));
+                    System.Windows.Forms.Application.DoEvents();
+                    app.PerformMenuSettingsClickForTest();
+                    System.Windows.Forms.Application.DoEvents();
+                    Check("ux023.realDropDownVisible", drop.Visible, true);
+                    Rectangle db = drop.Bounds;
+                    Screen dscr = Screen.FromPoint(new Point(db.Left + 1, db.Top + 1));
+                    Check("ux023.realDropDownOnScreen",
+                        dscr.WorkingArea.IntersectsWith(db), true);
+                    Check("ux023.realDropDownSized", db.Width > 0 && db.Height > 0, true);
+                    Check("ux023.realDropDownBeside",
+                        db.Left >= strip.Bounds.Left || db.Right <= strip.Bounds.Right, true);
+                    Check("ux023.realNoModal", app.SettingsOpenForTest, false);
+                    Check("ux023.realZeroQuery", queries, 0);
+                }
+                finally
+                {
+                    try { drop.Close(); } catch (Exception) { }
+                    try { strip.Close(); } catch (Exception) { }
+                }
+
+                // Populate content with data and select a non-current period.
+                app.ApplyViewForTest(SyntheticSample.BuildLarge());
+                app.OpenMenuContentForTest();
+                Check("ux023.contentCount", app.MenuContentCountForTest > 0, true);
+                Check("ux023.contentEnabled", app.MenuContentEnabledForTest, true);
+                int current = -1, other = -1, checkedCount = 0;
+                for (int i = 0; i < app.MenuContentCountForTest; i++)
+                {
+                    if (app.MenuContentCheckedForTest(i)) { checkedCount++; current = i; }
+                    else if (other < 0) other = i;
+                }
+                Check("ux023.contentCurrentChecked", current >= 0, true);
+                Check("ux023.contentSingleChecked", checkedCount, 1);
+                Check("ux023.contentOtherExists", other >= 0, true);
+                string before = app.SelectedPeriodTextForTest;
+                app.PerformMenuContentForTest(other);
+                System.Windows.Forms.Application.DoEvents();
+                Check("ux023.contentSwitched", app.SelectedPeriodTextForTest != before, true);
+                Check("ux023.contentNoModal", app.SettingsOpenForTest, false);
+                Check("ux023.contentZeroQuery", queries, 0);
+            }
+
+            // Failure: the save is attempted FIRST and a failed save keeps the
+            // old value plus a short hint (no modal, no query).
+            int failSaves = 0;
+            using (FloatingQuotaForm f = new FloatingQuotaForm(
+                delegate { return (FloatingSettings)null; },
+                delegate(FloatingSettings s) { failSaves++; return false; },
+                delegate { return (FloatingPreferences)null; },
+                delegate(FloatingPreferences p) { return true; }))
+            {
+                f.ApplyModelView(BuildLargeView());
+                f.OpenDefaultMenuContentForTest();
+                Check("ux023.failCandidates", f.DefaultMenuContentCountForTest > 0, true);
+                int pick = f.DefaultMenuContentCheckedForTest(0) ? 1 : 0;
+                Check("ux023.failPickExists", pick < f.DefaultMenuContentCountForTest, true);
+                f.PerformDefaultMenuContentForTest(pick);
+                Check("ux023.failSaveAttempted", failSaves, 1);
+                Check("ux023.failKeepsStored", f.StoredSettingsForTest, null);
+                Check("ux023.failHint", f.LockHintForTest, "悬浮内容未保存");
+                Check("ux023.failNoModal", f.SettingsOpenForTest, false);
+            }
+
+            // Empty: no candidates -> the 悬浮内容 submenu is disabled.
+            using (FloatingQuotaForm f = new FloatingQuotaForm(
+                delegate { return (FloatingSettings)null; },
+                delegate(FloatingSettings s) { return true; },
+                delegate { return (FloatingPreferences)null; },
+                delegate(FloatingPreferences p) { return true; }))
+            {
+                Check("ux023.formTopCount", f.DefaultMenuTopCountForTest, 2);
+                Check("ux023.formTopSettings", f.DefaultMenuTopTextForTest(0), "设置");
+                Check("ux023.formTopExit", f.DefaultMenuTopTextForTest(1), "退出");
+                Check("ux023.formSubmenuCount", f.DefaultMenuSettingsCountForTest, 6);
+                Check("ux023.formSubmenuContent", f.DefaultMenuSettingsTextForTest(0), "悬浮内容");
+                f.PerformDefaultMenuSettingsForTest();
+                Check("ux023.formDropDownRequested",
+                    f.SettingsDropDownRequestedForTest, true);
+                Check("ux023.formNoModal", f.SettingsOpenForTest, false);
+                f.OpenDefaultMenuContentForTest();
+                Check("ux023.emptyCount", f.DefaultMenuContentCountForTest, 0);
+                Check("ux023.emptyDisabled", f.DefaultMenuContentEnabledForTest, false);
+            }
+
+            // Stable refresh vs real change: a routine same-semantics refresh
+            // (the 10s poll) keeps the menu items / checks and stays selectable;
+            // only a genuine candidate or identity change invalidates an item
+            // captured before it. Data cleared while open empties / disables.
+            int staleSaves = 0;
+            using (FloatingQuotaForm f = new FloatingQuotaForm(
+                delegate { return (FloatingSettings)null; },
+                delegate(FloatingSettings s) { staleSaves++; return true; },
+                delegate { return (FloatingPreferences)null; },
+                delegate(FloatingPreferences p) { return true; }))
+            {
+                f.ApplyModelView(BuildLargeView());
+                f.OpenDefaultMenuContentForTest();
+                int n0 = f.DefaultMenuContentCountForTest;
+                Check("ux023.sameCandidates", n0 > 0, true);
+                int gen0 = f.ContentGenerationForTest;
+                int checked0 = 0;
+                for (int i = 0; i < n0; i++)
+                    if (f.DefaultMenuContentCheckedForTest(i)) checked0++;
+                Check("ux023.sameCheckedOnce", checked0, 1);
+
+                // Same semantics (same view): no rebuild, no invalidation.
+                f.ApplyModelView(BuildLargeView());
+                Check("ux023.sameGenStable", f.ContentGenerationForTest, gen0);
+                Check("ux023.sameCountStable", f.DefaultMenuContentCountForTest, n0);
+                int checked1 = 0;
+                for (int i = 0; i < n0; i++)
+                    if (f.DefaultMenuContentCheckedForTest(i)) checked1++;
+                Check("ux023.sameCheckedStable", checked1, 1);
+                int pick = f.DefaultMenuContentCheckedForTest(0) ? 1 : 0;
+                f.PerformDefaultMenuContentForTest(pick);
+                Check("ux023.sameStillSaves", staleSaves, 1);
+
+                // A truly different candidate set rejects a pre-change item.
+                List<FloatingEntry> old = FloatingSelection.SelectableCandidates(
+                    FloatingSelection.Build(SyntheticSample.BuildLarge()));
+                int genBefore = f.ContentGenerationForTest;
+                f.ApplyModelView(BuildSingleView());
+                Check("ux023.changeGenBumped", f.ContentGenerationForTest != genBefore, true);
+                f.ApplyContentSelection(old[0], genBefore); // stale captured click
+                Check("ux023.staleNotSaved", staleSaves, 1);
+                Check("ux023.staleHint", f.LockHintForTest, "悬浮内容不可用");
+
+                // Identity change alone (same candidates) also invalidates.
+                // T-057: the authority is the scope fingerprint, not the display
+                // IdentityHint (a real owner change can keep the same hint).
+                PanelView other = OwnerScopeView("trn:iam::000000000000:user/other",
+                    PercentSnapshot(10));
+                int genId = f.ContentGenerationForTest;
+                f.ApplyModelView(other);
+                Check("ux023.identityGenBumped", f.ContentGenerationForTest != genId, true);
+
+                f.ApplyModelView(EmptyView());
+                Check("ux023.clearedCount", f.DefaultMenuContentCountForTest, 0);
+                Check("ux023.clearedDisabled", f.DefaultMenuContentEnabledForTest, false);
+            }
+
+            // T-057: two real PanelModel views for the SAME candidates but a
+            // genuinely different owner (owner_trn alice -> bob) while type /
+            // region / profile name - and therefore the friendly IdentityHint -
+            // stay identical. The scope fingerprint differs, so an item captured
+            // under the old owner must be rejected; a same-scope refresh must
+            // still save.
+            int ownerSaves = 0;
+            using (FloatingQuotaForm f = new FloatingQuotaForm(
+                delegate { return (FloatingSettings)null; },
+                delegate(FloatingSettings s) { ownerSaves++; return true; },
+                delegate { return (FloatingPreferences)null; },
+                delegate(FloatingPreferences p) { return true; }))
+            {
+                PanelView alice = OwnerScopeView("trn:iam::000000000000:user/alice",
+                    SyntheticSample.BuildLarge());
+                PanelView bob = OwnerScopeView("trn:iam::000000000000:user/bob",
+                    SyntheticSample.BuildLarge());
+                Check("ux023.t057SameHint", alice.IdentityHint, bob.IdentityHint);
+                Check("ux023.t057DiffFingerprint",
+                    alice.ScopeFingerprint != bob.ScopeFingerprint, true);
+
+                f.ApplyModelView(alice);
+                f.OpenDefaultMenuContentForTest();
+                int owner0 = f.DefaultMenuContentCountForTest;
+                Check("ux023.t057Candidates", owner0 > 0, true);
+                int genOwner = f.ContentGenerationForTest;
+
+                // Same scope renewal: no rebuild and the selection still saves.
+                f.ApplyModelView(OwnerScopeView("trn:iam::000000000000:user/alice",
+                    SyntheticSample.BuildLarge()));
+                Check("ux023.t057SameScopeStable", f.ContentGenerationForTest, genOwner);
+                int ownerPick = f.DefaultMenuContentCheckedForTest(0) ? 1 : 0;
+                f.PerformDefaultMenuContentForTest(ownerPick);
+                Check("ux023.t057SameScopeSaves", ownerSaves, 1);
+
+                // Owner switch, same hint + same candidates: the pre-change item
+                // must be refused (no stale save). Pick a candidate that is NOT
+                // the current selection, so only the generation mismatch (the
+                // scope change) can explain the refusal.
+                List<FloatingEntry> aliceCandidates = FloatingSelection.SelectableCandidates(
+                    FloatingSelection.Build(alice.Data));
+                FloatingSettings cur = f.StoredSettingsForTest;
+                FloatingEntry stale = null;
+                for (int i = 0; i < aliceCandidates.Count && stale == null; i++)
+                {
+                    FloatingEntry e = aliceCandidates[i];
+                    if (cur == null || e.ProductKey != cur.ProductKey || e.Label != cur.PeriodLabel)
+                        stale = e;
+                }
+                Check("ux023.t057StaleCandidateFound", stale != null, true);
+                int genBefore = f.ContentGenerationForTest;
+                f.ApplyModelView(bob);
+                Check("ux023.t057OwnerGenBumped",
+                    f.ContentGenerationForTest != genBefore, true);
+                f.ApplyContentSelection(stale, genBefore);
+                Check("ux023.t057OwnerStaleNotSaved", ownerSaves, 1);
+                Check("ux023.t057OwnerStaleHint", f.LockHintForTest, "悬浮内容不可用");
+            }
+
+            // (a) ClearContentItems followed immediately by Dispose releases the
+            // removed items synchronously; a late posted drain is a safe no-op.
+            FloatingQuotaForm d = new FloatingQuotaForm(
+                delegate { return (FloatingSettings)null; },
+                delegate(FloatingSettings s) { return true; },
+                delegate { return (FloatingPreferences)null; },
+                delegate(FloatingPreferences p) { return true; });
+            d.ApplyModelView(BuildLargeView());
+            d.OpenDefaultMenuContentForTest();          // build the first set
+            System.Windows.Forms.Application.DoEvents();
+            int builtCount = d.DefaultMenuContentCountForTest;
+            Check("ux023.disposeBuilt", builtCount > 0, true);
+            int relBefore = d.ContentItemsReleasedForTest;
+            d.OpenDefaultMenuContentForTest();          // remove -> queued, drain posted
+            d.Dispose();                                // must drain synchronously
+            System.Windows.Forms.Application.DoEvents(); // late callback must be safe
+            Check("ux023.disposeDrains",
+                d.ContentItemsReleasedForTest - relBefore, builtCount);
+
+            // A rebuild deterministically releases the previous items; the
+            // release is posted, so it is flushed by the message pump.
+            using (FloatingQuotaForm f = new FloatingQuotaForm(
+                delegate { return (FloatingSettings)null; },
+                delegate(FloatingSettings s) { return true; },
+                delegate { return (FloatingPreferences)null; },
+                delegate(FloatingPreferences p) { return true; }))
+            {
+                f.ApplyModelView(BuildLargeView());
+                f.OpenDefaultMenuContentForTest();
+                System.Windows.Forms.Application.DoEvents(); // flush posted releases
+                int n = f.DefaultMenuContentCountForTest;
+                Check("ux023.releaseFirstBuild", n > 0, true);
+                int released0 = f.ContentItemsReleasedForTest;
+                f.OpenDefaultMenuContentForTest();
+                System.Windows.Forms.Application.DoEvents();
+                Check("ux023.releaseRebuild",
+                    f.ContentItemsReleasedForTest - released0, n);
+                int released1 = f.ContentItemsReleasedForTest;
+                f.OpenDefaultMenuContentForTest();
+                System.Windows.Forms.Application.DoEvents();
+                Check("ux023.releaseRepeat",
+                    f.ContentItemsReleasedForTest - released1, n);
+            }
+
+            // Details-right settings modal is preserved; its label is now
+            // 悬浮内容 (details menu itself is unchanged).
+            List<FloatingEntry> candidates = FloatingSelection.SelectableCandidates(
+                FloatingSelection.Build(SyntheticSample.BuildLarge()));
+            using (FloatingSettingsForm dlg = new FloatingSettingsForm(candidates, null,
+                delegate(FloatingSettings s) { return true; }))
+            {
+                Check("ux023.modalHeading", dlg.HeadingForTest.Text, "悬浮内容");
+                Check("ux023.modalAccessible", dlg.AccessibleName, "悬浮内容");
+            }
+        }
+
+        private static PanelView BuildLargeView()
+        {
+            PanelModel model = new PanelModel();
+            model.OnAuthResult(true, PopupForm.SampleIdentity(), QuotaStatus.Ok, null);
+            return model.OnUsageResult(SyntheticSample.BuildLarge(), null, ScopeVerdict.Same, null);
+        }
+
+        private static PanelView BuildSingleView()
+        {
+            PanelModel model = new PanelModel();
+            model.OnAuthResult(true, PopupForm.SampleIdentity(), QuotaStatus.Ok, null);
+            return model.OnUsageResult(PercentSnapshot(10), null, ScopeVerdict.Same, null);
+        }
+
+        // T-057: a real PanelModel-produced view for a given owner, with the
+        // same friendly identity descriptor regardless of owner_trn. Used to
+        // prove the scope fingerprint - not the hint - drives menu invalidation.
+        private static PanelView OwnerScopeView(string ownerTrn, QuotaSnapshot snap)
+        {
+            PanelModel model = new PanelModel();
+            AuthIdentity id = PopupForm.SampleIdentity();
+            id.OwnerTrn = ownerTrn;
+            model.OnAuthResult(true, id, QuotaStatus.Ok, null);
+            return model.OnUsageResult(snap, null, ScopeVerdict.Same, null);
         }
 
         private static void Check(string name, object actual, object expected)

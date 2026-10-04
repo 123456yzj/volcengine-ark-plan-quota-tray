@@ -2206,6 +2206,12 @@ namespace ArkLeft
         private ToolStripMenuItem _menuMotion;
         // v0.12 UX020: "悬浮窗归位" shared menu item (after 减少动画).
         private ToolStripMenuItem _menuHome;
+        // v0.15 UX023: the 设置 submenu and its 悬浮内容 chooser; the top
+        // level is only [设置, 退出] and the shared menu no longer routes to
+        // the settings modal.
+        private ToolStripMenuItem _menuSettings;
+        private ToolStripMenuItem _menuContent;
+        private bool _menuSettingsDropDownRequested;
         // v0.8 UX016 fix: offline-observable intent counters for the failed
         // lock-save tray notification (no real NotifyIcon exists offline).
         private int _lockFailNotifyCount;
@@ -2214,6 +2220,10 @@ namespace ArkLeft
         // save notification; the wording must never claim a lock failure.
         private int _motionFailNotifyCount;
         private string _lastMotionFailText;
+        // v0.15 UX023: distinct intent counter / wording for the failed
+        // 悬浮内容 menu save notification (never the lock / motion wording).
+        private int _contentFailNotifyCount;
+        private string _lastContentFailText;
         private PopupForm _form;
         private FloatingQuotaForm _floating;
         private QuotaCli _cli;
@@ -2299,36 +2309,62 @@ namespace ArkLeft
             // tests so the real menu / settings path is exercised; only the
             // NotifyIcon / tray registration / IPC stay production-only.
             _menu = new ContextMenuStrip();
-            _menu.Items.Add("查看全部额度", null, delegate { ShowDetails(); });
-            _menu.Items.Add("设置", null, delegate { OpenSettings(); });
+            // v0.15 UX023: top level is only [设置(子菜单), 退出]; the left
+            // click keeps opening the details and the shared menu never opens
+            // the settings modal. The 设置 submenu expands natively to the
+            // side and holds 悬浮内容 plus the existing toggles.
+            _menuSettings = new ToolStripMenuItem("设置");
+            _menuContent = new ToolStripMenuItem("悬浮内容");
+            _menuSettings.DropDownItems.Add(_menuContent);
+            _menuSettings.DropDownItems.Add(new ToolStripSeparator());
             // v0.8 UX016: checkable "锁定位置" shared with the circle menu —
             // same state / handler inside FloatingQuotaForm; the check is
-            // re-synced from the real state on change and on menu opening.
+            // re-synced from the real state on change and on submenu opening.
             _menuLock = new ToolStripMenuItem("锁定位置");
             _menuLock.CheckOnClick = false; // state is owned by FloatingQuotaForm
             _menuLock.Click += delegate { _floating.TogglePositionLocked(); };
-            _menu.Items.Add(_menuLock);
-            // v0.9 UX017: checkable "减少动画" shared with the circle menu -
-            // same state / handler inside FloatingQuotaForm; inserted right
-            // after the lock item per the frozen UX017 order.
+            _menuSettings.DropDownItems.Add(_menuLock);
+            // v0.9 UX017: checkable "减少动画" shared with the circle menu.
             _menuMotion = new ToolStripMenuItem("减少动画");
             _menuMotion.CheckOnClick = false; // state is owned by FloatingQuotaForm
             _menuMotion.Click += delegate { _floating.ToggleReduceMotion(); };
-            _menu.Items.Add(_menuMotion);
-            // v0.12 UX020: "悬浮窗归位" right after "减少动画" (one shared
-            // item for the tray and the circle right-click menu). Explicit
-            // re-home: zero query, nothing persisted, the lock never blocks
-            // it; the show/hide toggle shifts from index 4 to 5.
+            _menuSettings.DropDownItems.Add(_menuMotion);
+            // v0.12 UX020: "悬浮窗归位" (one shared item for the tray and the
+            // circle right-click menu). Explicit re-home: zero query, nothing
+            // persisted, the lock never blocks it.
             _menuHome = new ToolStripMenuItem("悬浮窗归位", null,
                 delegate { RepositionFloatingHome(); });
-            _menu.Items.Add(_menuHome);
+            _menuSettings.DropDownItems.Add(_menuHome);
             _menuToggle = new ToolStripMenuItem("隐藏悬浮窗", null, delegate { ToggleFloating(); });
-            _menu.Items.Add(_menuToggle);
-            _menu.Items.Add(new ToolStripSeparator());
-            _menu.Items.Add("退出 ark_left", null, delegate { ExitApp(); });
+            _menuSettings.DropDownItems.Add(_menuToggle);
+            // Explicit native side expansion on click (never a modal).
+            _menuSettings.Click += delegate
+            {
+                _menuSettingsDropDownRequested = true;
+                try { if (_menu != null && _menu.Visible) _menuSettings.ShowDropDown(); }
+                catch (Exception) { }
+            };
+            // Rebuild 悬浮内容 from the CURRENT snapshot on every open; a
+            // candidate that changes while open is re-validated on click.
+            _menuSettings.DropDownOpening += delegate
+            {
+                _floating.PopulateContentMenu(_menuContent);
+                SyncLockChecked();
+                UpdateToggleText();
+            };
+            _menu.Items.Add(_menuSettings);
+            _menu.Items.Add("退出", null, delegate { ExitApp(); });
             UiStyle.StyleMenu(_menu);
             _floating.SetContextMenuStrip(_menu);
             _floating.PositionLockChanged += delegate { SyncLockChecked(); };
+            // A toggle inside the open 设置 submenu must re-sync both checks
+            // and the 悬浮内容 list (the opening hook does not fire again).
+            _floating.ContentChanged += delegate
+            {
+                _floating.PopulateContentMenu(_menuContent);
+                SyncLockChecked();
+            };
+            _floating.ContentSaveFailed += delegate { OnContentSaveFailed(); };
             SyncLockChecked();
 
             // Force both handles so BeginInvoke / click simulation work while
@@ -2637,6 +2673,25 @@ namespace ArkLeft
             catch (Exception) { }
         }
 
+        // v0.15 UX023: a failed 悬浮内容 menu save mirrors the lock / motion
+        // path with DISTINCT fixed wording. Circle visible -> the tooltip path
+        // covers it; hidden -> tray balloon intent. Never opens the circle /
+        // details, never opens a modal, never queries.
+        private void OnContentSaveFailed()
+        {
+            if (_disposed) return;
+            if (_floating != null && _floating.CircleVisible) return;
+            _contentFailNotifyCount++;
+            _lastContentFailText = "悬浮内容未保存";
+            if (_notify == null) return;
+            try
+            {
+                _notify.ShowBalloonTip(2500, "ark_left", _lastContentFailText,
+                    ToolTipIcon.Warning);
+            }
+            catch (Exception) { }
+        }
+
         // v0.5 UX013: while the circle or the details panel is visible, poll at
         // VisiblePollIntervalMs; otherwise fall back to the base interval. Only
         // the Timer interval changes - no immediate query, no timer restart, and
@@ -2723,6 +2778,63 @@ namespace ArkLeft
         }
         internal int MotionFailNotifyCountForTest { get { return _motionFailNotifyCount; } }
         internal string LastMotionFailTextForTest { get { return _lastMotionFailText; } }
+        // v0.15 UX023 test hooks: shared 设置 submenu / 悬浮内容 chooser and
+        // the distinct failed-content-save tray intent.
+        internal bool MenuSettingsDropDownRequestedForTest
+        {
+            get { return _menuSettingsDropDownRequested; }
+        }
+        internal ToolStripMenuItem MenuSettingsForTest { get { return _menuSettings; } }
+        internal ContextMenuStrip MenuForTest { get { return _menu; } }
+        internal int MenuSettingsCountForTest
+        {
+            get { return _menuSettings == null ? 0 : _menuSettings.DropDownItems.Count; }
+        }
+        internal string MenuSettingsTextForTest(int i)
+        {
+            return (_menuSettings != null && i >= 0 && i < _menuSettings.DropDownItems.Count)
+                ? _menuSettings.DropDownItems[i].Text : null;
+        }
+        internal void PerformMenuSettingsClickForTest()
+        {
+            if (_menuSettings != null) _menuSettings.PerformClick();
+        }
+        internal void OpenMenuContentForTest()
+        {
+            _floating.PopulateContentMenu(_menuContent);
+        }
+        internal int MenuContentCountForTest
+        {
+            get { return _menuContent == null ? 0 : _menuContent.DropDownItems.Count; }
+        }
+        internal bool MenuContentEnabledForTest
+        {
+            get { return _menuContent != null && _menuContent.Enabled; }
+        }
+        internal string MenuContentTextForTest(int i)
+        {
+            return (_menuContent != null && i >= 0 && i < _menuContent.DropDownItems.Count)
+                ? _menuContent.DropDownItems[i].Text : null;
+        }
+        internal bool MenuContentCheckedForTest(int i)
+        {
+            if (_menuContent == null || i < 0 || i >= _menuContent.DropDownItems.Count) return false;
+            ToolStripMenuItem it = _menuContent.DropDownItems[i] as ToolStripMenuItem;
+            return it != null && it.Checked;
+        }
+        internal void PerformMenuContentForTest(int i)
+        {
+            if (_menuContent == null || i < 0 || i >= _menuContent.DropDownItems.Count) return;
+            ToolStripMenuItem it = _menuContent.DropDownItems[i] as ToolStripMenuItem;
+            if (it != null) it.PerformClick();
+        }
+        internal void PerformMenuLockForTest() { if (_menuLock != null) _menuLock.PerformClick(); }
+        internal void PerformMenuMotionForTest() { if (_menuMotion != null) _menuMotion.PerformClick(); }
+        internal void PerformMenuHomeForTest() { if (_menuHome != null) _menuHome.PerformClick(); }
+        internal void PerformMenuToggleForTest() { if (_menuToggle != null) _menuToggle.PerformClick(); }
+        internal void ShowDetailsForTest() { ShowDetails(); }
+        internal int ContentFailNotifyCountForTest { get { return _contentFailNotifyCount; } }
+        internal string LastContentFailTextForTest { get { return _lastContentFailText; } }
 
         // Applies synthetic data to both surfaces WITHOUT a query, mirroring the
         // controller commit. Used to drive the real settings path offline.
