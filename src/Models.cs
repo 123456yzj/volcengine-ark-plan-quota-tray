@@ -91,6 +91,98 @@ namespace ArkLeft
         public string UnknownNote;
     }
 
+    // Pure display projection. Raw quota fields stay unchanged so parsing and
+    // cache persistence retain the server's original values.
+    public sealed class EffectivePeriodQuota
+    {
+        public bool PercentKnown;
+        public double RemainingPercent;
+        public bool AmountKnown;
+        public double RemainingAmount;
+    }
+
+    public static class QuotaDisplay
+    {
+        public static EffectivePeriodQuota Effective(ProductQuota product, PeriodQuota period)
+        {
+            EffectivePeriodQuota result = new EffectivePeriodQuota();
+            if (product == null || period == null || period.Error != null) return result;
+
+            double minimum;
+            bool hasMinimum = MinimumAmount(product, period, out minimum);
+            double ownAmount;
+            bool ownAmountValid = ValidAmount(period, out ownAmount);
+            if (ownAmountValid && hasMinimum)
+            {
+                result.AmountKnown = true;
+                result.RemainingAmount = minimum;
+            }
+
+            double total;
+            if (ownAmountValid && hasMinimum && ValidTotal(period, out total))
+            {
+                double percent = minimum / total * 100.0;
+                result.PercentKnown = true;
+                result.RemainingPercent = percent > 100.0 ? 100.0 : percent;
+            }
+            else if (ValidPercent(period))
+            {
+                result.PercentKnown = true;
+                result.RemainingPercent = period.RemainingPercent;
+            }
+            return result;
+        }
+
+        private static bool MinimumAmount(ProductQuota product, PeriodQuota target, out double minimum)
+        {
+            minimum = 0.0;
+            double ownAmount;
+            if (!ValidAmount(target, out ownAmount)) return false;
+            minimum = ownAmount;
+
+            if (product.Periods == null || target == null) return true;
+            string label = target.Label;
+            bool includeWeekly = label == "5h";
+            bool includeMonthly = label == "5h" || label == "weekly";
+            if (!includeWeekly && !includeMonthly) return true;
+
+            for (int i = 0; i < product.Periods.Count; i++)
+            {
+                PeriodQuota candidate = product.Periods[i];
+                if (candidate == null || candidate == target) continue;
+                if (candidate.Label == "weekly" && !includeWeekly) continue;
+                if (candidate.Label == "monthly" && !includeMonthly) continue;
+                if (candidate.Label != "weekly" && candidate.Label != "monthly") continue;
+                double amount;
+                if (!ValidAmount(candidate, out amount)) continue;
+                if (amount < minimum) minimum = amount;
+            }
+            return true;
+        }
+
+        private static bool ValidAmount(PeriodQuota period, out double amount)
+        {
+            amount = 0.0;
+            if (period == null || period.Error != null || !period.AmountKnown) return false;
+            amount = period.RemainingAmount;
+            return !double.IsNaN(amount) && !double.IsInfinity(amount) && amount >= 0.0;
+        }
+
+        private static bool ValidTotal(PeriodQuota period, out double total)
+        {
+            total = period.Total;
+            return period.TotalKnown && !double.IsNaN(total) && !double.IsInfinity(total)
+                && total > 0.0;
+        }
+
+        private static bool ValidPercent(PeriodQuota period)
+        {
+            return period.PercentKnown && !double.IsNaN(period.RemainingPercent)
+                && !double.IsInfinity(period.RemainingPercent)
+                && period.RemainingPercent >= 0.0 && period.RemainingPercent <= 100.0;
+        }
+    }
+
     public static class DisplayNames
     {
         public static string Product(string p)

@@ -73,10 +73,11 @@ namespace ArkLeft.Check
                     for (int j = 0; j < pq.Periods.Count; j++)
                     {
                         PeriodQuota p = pq.Periods[j];
+                        EffectivePeriodQuota effective = QuotaDisplay.Effective(pq, p);
                         Console.WriteLine("  period=" + p.LabelDisplay
-                            + " remaining=" + Remaining(p)
-                            + " source=" + Source(p)
-                            + " amount=" + (p.AmountKnown ? DisplayNames.Number(p.RemainingAmount) : "unknown")
+                             + " remaining=" + Remaining(pq, p)
+                             + " source=" + Source(pq, p)
+                            + " amount=" + (effective.AmountKnown ? DisplayNames.Number(effective.RemainingAmount) : "unknown")
                             + " reset=" + (p.HasReset ? DisplayNames.FormatTime(p.ResetLocal) : "none")
                             + (p.Clamped ? " clamped=true" : ""));
                     }
@@ -113,20 +114,22 @@ namespace ArkLeft.Check
             return "unknown";
         }
 
-        private static string Remaining(PeriodQuota p)
+        private static string Remaining(ProductQuota product, PeriodQuota p)
         {
             if (p.Error != null) return "error";
-            if (!p.PercentKnown) return "unknown";
+            EffectivePeriodQuota effective = QuotaDisplay.Effective(product, p);
+            if (!effective.PercentKnown) return "unknown";
             // Same rendering as the UI: true 0 => "已用尽", 0<v<1 => "<1%",
             // otherwise at most one decimal. Avoids the old "0%" that hid a
             // tiny-but-nonzero remaining amount.
-            return PercentFormat.Remaining(p.RemainingPercent);
+            return PercentFormat.Remaining(effective.RemainingPercent);
         }
 
-        private static string Source(PeriodQuota p)
+        private static string Source(ProductQuota product, PeriodQuota p)
         {
             if (p.Error != null) return "error";
-            if (!p.PercentKnown) return "unknown";
+            EffectivePeriodQuota effective = QuotaDisplay.Effective(product, p);
+            if (!effective.PercentKnown) return "unknown";
             return p.Clamped ? "clamped" : "ok";
         }
     }

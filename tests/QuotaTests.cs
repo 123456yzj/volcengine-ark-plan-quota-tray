@@ -18,7 +18,32 @@ namespace ArkLeft.Tests
         [STAThread]
         private static int Main(string[] args)
         {
-            try { return RunTests(); }
+            try
+            {
+                if (args.Length == 1 && args[0] == "--menu-interaction")
+                {
+                    MenuInteractionCases();
+                    FloatingMenuUX023Cases();
+                    Console.WriteLine("menu-interaction: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
+                if (args.Length == 1 && args[0] == "--compact-ui")
+                {
+                    CompactUiCases();
+                    Console.WriteLine("compact-ui: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
+                if (args.Length == 1 && args[0] == "--effective-quota")
+                {
+                    EffectiveQuotaCases();
+                    Console.WriteLine("effective-quota: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
+                return RunTests();
+            }
             catch (Exception ex)
             {
                 try { System.IO.File.WriteAllText(
@@ -56,6 +81,7 @@ namespace ArkLeft.Tests
             DisplayNameMapping();
             LayoutMathBounds();
             PercentFormatCases();
+            EffectiveQuotaCases();
             RelativeFormatCases();
             RiskSummaryCases();
             ScopeFingerprintCases();
@@ -115,6 +141,277 @@ namespace ArkLeft.Tests
 
         // ---- cases ----
 
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+
+        private static void PumpToggleMessages(int milliseconds)
+        {
+            DateTime until = DateTime.UtcNow.AddMilliseconds(milliseconds);
+            do
+            {
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(10);
+            } while (DateTime.UtcNow < until);
+        }
+
+        private static void LogMenuFailureState(int previousFailures, ContextMenuStrip menu,
+            ToolStripMenuItem settings, ToolStripMenuItem content, Control circle)
+        {
+            if (_failed == previousFailures) return;
+            Console.Error.WriteLine("menu state: cursor=" + Cursor.Position
+                + " active=" + (Form.ActiveForm == null ? "null" : Form.ActiveForm.Text)
+                + " circle=" + circle.Bounds + " root=" + menu.Bounds
+                + " rootVisible=" + menu.Visible + " settings=" + settings.DropDown.Bounds
+                + " settingsVisible=" + settings.DropDown.Visible + " content=" + content.DropDown.Bounds
+                + " contentVisible=" + content.DropDown.Visible);
+        }
+
+        private static void CheckMenuGeometry(string tag, string level, ToolStripDropDown drop,
+            Rectangle work, Control circle)
+        {
+            int before = _failed;
+            Check(tag + "." + level + ".visible", drop.Visible, true);
+            if (drop.Visible)
+            {
+                Check(tag + "." + level + ".onScreen", work.Contains(drop.Bounds), true);
+                Check(tag + "." + level + ".avoidsCircle",
+                    drop.Bounds.IntersectsWith(circle.Bounds), false);
+            }
+            if (_failed != before)
+                Console.Error.WriteLine(tag + "." + level + " state: circle=" + circle.Bounds
+                    + " bounds=" + drop.Bounds + " visible=" + drop.Visible
+                    + " autoClose=" + drop.AutoClose + " cursor=" + Cursor.Position
+                    + " active=" + (Form.ActiveForm == null ? "null" : Form.ActiveForm.Text));
+        }
+
+        private static void MenuInteractionCases()
+        {
+            int queries = 0;
+            using (TrayApp app = new TrayApp(delegate(IProgress<QueryProgress> progress,
+                System.Threading.CancellationToken token)
+                { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
+            {
+                app.OpenEntryForTest("circle");
+                app.ApplyViewForTest(SyntheticSample.BuildLarge());
+                FloatingCircleControl circle = app.CircleForTest;
+                Check("menu.circleHoverTooltipEmpty", circle.HoverTooltipForTest, "");
+                ContextMenuStrip menu = app.MenuForTest;
+                ToolStripMenuItem settings = app.MenuSettingsForTest;
+                ToolStripMenuItem content = (ToolStripMenuItem)settings.DropDownItems[0];
+                int initialFailures = _failed;
+                app.ShowDetailsForTest();
+                Application.DoEvents();
+                Check("menu.detailsInitiallyOpen", app.DetailsVisibleForTest, true);
+                menu.Show(circle, new Point(20, 20));
+                Application.DoEvents();
+                Check("menu.closesLeftDetails", app.DetailsVisibleForTest, false);
+                Check("menu.rootAvoidsCircle", menu.Bounds.IntersectsWith(circle.Bounds), false);
+                LogMenuFailureState(initialFailures, menu, settings, content, circle);
+                foreach (ToolStripMenuItem item in new ToolStripMenuItem[] { settings, content })
+                {
+                    int beforeItem = _failed;
+                    item.PerformClick();
+                    Application.DoEvents();
+                    Check("menu.clickOpens." + item.Text, item.DropDown.Visible, true);
+                    item.PerformClick();
+                    Application.DoEvents();
+                    Check("menu.clickCloses." + item.Text, item.DropDown.Visible, false);
+                    item.PerformClick();
+                    Application.DoEvents();
+                    Check("menu.clickReopens." + item.Text, item.DropDown.Visible, true);
+                    Point center = new Point(item.Bounds.Left + item.Bounds.Width / 2,
+                        item.Bounds.Top + item.Bounds.Height / 2);
+                    IntPtr point = new IntPtr(center.X | (center.Y << 16));
+                    SendMessage(item.Owner.Handle, 0x0201, new IntPtr(1), point);
+                    SendMessage(item.Owner.Handle, 0x0202, IntPtr.Zero, point);
+                    PumpToggleMessages(80);
+                    Check("menu.mouseCloses." + item.Text, item.DropDown.Visible, false);
+                    SendMessage(item.Owner.Handle, 0x0201, new IntPtr(1), point);
+                    SendMessage(item.Owner.Handle, 0x0202, IntPtr.Zero, point);
+                    PumpToggleMessages(80);
+                    Check("menu.mouseReopens." + item.Text, item.DropDown.Visible, true);
+                    LogMenuFailureState(beforeItem, menu, settings, content, circle);
+                }
+                int beforePlacement = _failed;
+                Check("menu.settingsAvoidsCircle", settings.DropDown.Bounds.IntersectsWith(circle.Bounds), false);
+                Check("menu.contentAvoidsCircle", content.DropDown.Bounds.IntersectsWith(circle.Bounds), false);
+                LogMenuFailureState(beforePlacement, menu, settings, content, circle);
+                int beforeDetails = _failed;
+                app.ShowDetailsForTest();
+                Application.DoEvents();
+                Check("menu.leftDetailsOpen", app.DetailsVisibleForTest, true);
+                Check("menu.leftClosesRoot", menu.Visible, false);
+                Check("menu.leftClosesSettings", settings.DropDown.Visible, false);
+                Check("menu.leftClosesContent", content.DropDown.Visible, false);
+                LogMenuFailureState(beforeDetails, menu, settings, content, circle);
+                app.HideDetailsForTest();
+                Point click = circle.PointToScreen(new Point(circle.Width / 2, circle.Height / 2));
+                int dragStarts = 0;
+                circle.DragStarted += delegate { dragStarts++; };
+                app.ShowDetailsForTest();
+                Application.DoEvents();
+                circle.SimulateMouseDownForTest(click);
+                Check("menu.downKeepsDetails", app.DetailsVisibleForTest, true);
+                circle.SimulateMouseMoveForTest(new Point(click.X + 2, click.Y));
+                Check("menu.belowThresholdKeepsDetails", app.DetailsVisibleForTest, true);
+                circle.SimulateMouseMoveForTest(new Point(click.X + 20, click.Y));
+                Application.DoEvents();
+                Check("menu.dragClosesDetails", app.DetailsVisibleForTest, false);
+                Check("menu.firstDragStart", dragStarts, 1);
+                circle.SimulateMouseMoveForTest(new Point(click.X + 24, click.Y));
+                Check("menu.dragStartOnlyOnce", dragStarts, 1);
+                circle.SimulateMouseUpForTest(new Point(click.X + 20, click.Y));
+                Application.DoEvents();
+                Check("menu.dragReleaseKeepsDetailsClosed", app.DetailsVisibleForTest, false);
+                menu.Show(circle, new Point(20, 20));
+                settings.ShowDropDown();
+                content.ShowDropDown();
+                Application.DoEvents();
+                click = circle.PointToScreen(new Point(circle.Width / 2, circle.Height / 2));
+                circle.SimulateMouseDownForTest(click);
+                Check("menu.downKeepsRoot", menu.Visible, true);
+                Check("menu.downKeepsSettings", settings.DropDown.Visible, true);
+                Check("menu.downKeepsContent", content.DropDown.Visible, true);
+                circle.SimulateMouseMoveForTest(new Point(click.X + 2, click.Y));
+                Check("menu.belowThresholdKeepsRoot", menu.Visible, true);
+                circle.SimulateMouseMoveForTest(new Point(click.X + 20, click.Y));
+                Application.DoEvents();
+                Check("menu.dragClosesRoot", menu.Visible, false);
+                Check("menu.dragClosesSettings", settings.DropDown.Visible, false);
+                Check("menu.dragClosesContent", content.DropDown.Visible, false);
+                Check("menu.secondDragStart", dragStarts, 2);
+                circle.SimulateMouseUpForTest(new Point(click.X + 20, click.Y));
+                Application.DoEvents();
+                Check("menu.dragReleaseKeepsRootClosed", menu.Visible, false);
+                Check("menu.dragReleaseKeepsDetailsClosedAgain", app.DetailsVisibleForTest, false);
+                circle.PositionLocked = true;
+                Point lockedLocation = circle.Location;
+                click = circle.PointToScreen(new Point(circle.Width / 2, circle.Height / 2));
+                circle.SimulateMouseDownForTest(click);
+                circle.SimulateMouseMoveForTest(new Point(click.X + 20, click.Y));
+                circle.SimulateMouseUpForTest(new Point(click.X + 20, click.Y));
+                Check("menu.lockedDragDoesNotMove", circle.Location, lockedLocation);
+                Check("menu.lockedDragDoesNotStart", dragStarts, 2);
+                Check("menu.lockedDragDoesNotOpenDetails", app.DetailsVisibleForTest, false);
+                circle.PositionLocked = false;
+                click = circle.PointToScreen(new Point(circle.Width / 2, circle.Height / 2));
+                circle.SimulateMouseDownForTest(click);
+                circle.SimulateMouseUpForTest(click);
+                Application.DoEvents();
+                Check("menu.clickStillOpensDetails", app.DetailsVisibleForTest, true);
+                app.HideDetailsForTest();
+                Rectangle work = Screen.PrimaryScreen.WorkingArea;
+                bool rootAutoClose = menu.AutoClose;
+                bool settingsAutoClose = settings.DropDown.AutoClose;
+                bool contentAutoClose = content.DropDown.AutoClose;
+                try
+                {
+                menu.AutoClose = false;
+                settings.DropDown.AutoClose = false;
+                content.DropDown.AutoClose = false;
+                circle.Location = new Point(work.Left + (work.Width - circle.Width) / 2,
+                    work.Top + (work.Height - circle.Height) / 2);
+                menu.Show(circle, new Point(20, 20));
+                Application.DoEvents();
+                int beforeCenter = _failed;
+                Check("menu.center.root.visible", menu.Visible, true);
+                if (circle.Left - work.Left >= menu.Width + FloatingLayout.Gap
+                    && work.Right - circle.Right >= menu.Width + FloatingLayout.Gap && menu.Visible)
+                {
+                    Check("menu.centerRightOfCircle", menu.Left >= circle.Right + FloatingLayout.Gap,
+                        true);
+                    Check("menu.centerRootOnScreen", work.Contains(menu.Bounds), true);
+                }
+                LogMenuFailureState(beforeCenter, menu, settings, content, circle);
+                menu.Close();
+                int chainWidth = menu.Width + settings.DropDown.GetPreferredSize(Size.Empty).Width
+                    + content.DropDown.GetPreferredSize(Size.Empty).Width + FloatingLayout.Gap;
+                int rightSpace = menu.Width + FloatingLayout.Gap + 12;
+                if (rightSpace < chainWidth && work.Width - circle.Width - rightSpace
+                    >= menu.Width + FloatingLayout.Gap)
+                {
+                    circle.Location = new Point(work.Right - circle.Width - rightSpace,
+                        work.Top + (work.Height - circle.Height) / 2);
+                    menu.Show(circle, new Point(20, 20));
+                    settings.ShowDropDown();
+                    content.ShowDropDown();
+                    Application.DoEvents();
+                    int beforeShortRight = _failed;
+                    CheckMenuGeometry("menu.shortRight", "root", menu, work, circle);
+                    if (menu.Visible)
+                        Check("menu.shortRightRootRightOfCircle",
+                            menu.Left >= circle.Right + FloatingLayout.Gap, true);
+                    CheckMenuGeometry("menu.shortRight", "settings", settings.DropDown, work, circle);
+                    CheckMenuGeometry("menu.shortRight", "content", content.DropDown, work, circle);
+                    LogMenuFailureState(beforeShortRight, menu, settings, content, circle);
+                    menu.Close();
+                }
+                foreach (Point corner in new Point[] { work.Location,
+                    new Point(work.Right - circle.Width, work.Top),
+                    new Point(work.Left, work.Bottom - circle.Height),
+                    new Point(work.Right - circle.Width, work.Bottom - circle.Height) })
+                {
+                    circle.Location = corner;
+                    menu.Show(circle, new Point(20, 20));
+                    settings.ShowDropDown();
+                    content.ShowDropDown();
+                    Application.DoEvents();
+                    CheckMenuGeometry("menu.corner", "root", menu, work, circle);
+                    CheckMenuGeometry("menu.corner", "settings", settings.DropDown, work, circle);
+                    CheckMenuGeometry("menu.corner", "content", content.DropDown, work, circle);
+                    menu.Close();
+                }
+                }
+                finally
+                {
+                    content.HideDropDown();
+                    settings.HideDropDown();
+                    menu.Close();
+                    content.DropDown.AutoClose = contentAutoClose;
+                    settings.DropDown.AutoClose = settingsAutoClose;
+                    menu.AutoClose = rootAutoClose;
+                }
+                Point nativePoint = new Point(work.Left + work.Width / 2,
+                    work.Top + work.Height / 2);
+                int beforeNative = _failed;
+                menu.Show(nativePoint);
+                Application.DoEvents();
+                Check("menu.nonCircleSource", menu.SourceControl == null, true);
+                Check("menu.nonCircleLocation", menu.Location, nativePoint);
+                ToolStripDropDownDirection settingsBefore = settings.DropDownDirection;
+                ToolStripDropDownDirection contentBefore = content.DropDownDirection;
+                settings.ShowDropDown();
+                content.ShowDropDown();
+                Application.DoEvents();
+                ToolStripDropDownDirection settingsAfter = settings.DropDownDirection;
+                ToolStripDropDownDirection contentAfter = content.DropDownDirection;
+                LogMenuFailureState(beforeNative, menu, settings, content, circle);
+                menu.Close();
+                using (ContextMenuStrip native = new ContextMenuStrip())
+                {
+                    ToolStripMenuItem nativeSettings = new ToolStripMenuItem("设置");
+                    ToolStripMenuItem nativeContent = new ToolStripMenuItem("悬浮内容");
+                    nativeContent.DropDownItems.Add("对照项");
+                    nativeSettings.DropDownItems.Add(nativeContent);
+                    native.Items.Add(nativeSettings);
+                    native.Items.Add("隐藏悬浮窗");
+                    native.Items.Add("退出 ark_left");
+                    native.Show(nativePoint);
+                    Application.DoEvents();
+                    Check("menu.nonCircleSettingsDirection", settingsBefore, nativeSettings.DropDownDirection);
+                    Check("menu.nonCircleContentDirection", contentBefore, nativeContent.DropDownDirection);
+                    nativeSettings.ShowDropDown();
+                    nativeContent.ShowDropDown();
+                    Application.DoEvents();
+                    Check("menu.nonCircleSettingsDirectionAfterOpen", settingsAfter,
+                        nativeSettings.DropDownDirection);
+                    Check("menu.nonCircleContentDirectionAfterOpen", contentAfter,
+                        nativeContent.DropDownDirection);
+                }
+                Check("menu.zeroQuery", queries, 0);
+            }
+        }
+
         private static void PopupDisplayCases()
         {
             using (PopupForm form = new PopupForm())
@@ -167,6 +464,9 @@ namespace ArkLeft.Tests
                 Check("ui.failureSameChild", ReferenceEquals(child, form.ContentControls[0].Controls[0]), true);
                 Check("ui.failureSameTime", form.UpdateTimeTextForTest, time);
                 same.Products[0].Periods[0].RemainingPercent = 12;
+                form.ForceRender(same);
+                Check("ui.rawPercentIgnored", ReferenceEquals(card, form.ContentControls[0]), true);
+                same.Products[0].Periods[2].RemainingAmount = 50;
                 form.ForceRender(same);
                 Check("ui.changedReplaced", ReferenceEquals(card, form.ContentControls[0]), false);
                 Check("ui.changedDisposed", card.IsDisposed, true);
@@ -282,17 +582,27 @@ namespace ArkLeft.Tests
                 System.Drawing.Rectangle details = app.DetailsBoundsForTest;
                 Check("trayApp.detailsLeftOfCircle", details.Right <= cb.Left, true);
 
-                // v0.15 UX023: the shared top level is only [设置, 退出]; the
-                // existing toggles plus the 悬浮内容 chooser live in the 设置
-                // submenu. The left-click details path is unchanged.
-                Check("trayApp.menuPresent", app.MenuItemCountForTest, 2);
+                Point click = app.CircleForTest.PointToScreen(new Point(20, 20));
+                app.CircleForTest.SimulateMouseDownForTest(click);
+                app.CircleForTest.SimulateMouseUpForTest(click);
+                Application.DoEvents();
+                Check("trayApp.circleRepeatKeepsDetails", app.DetailsVisibleForTest, true);
+                Check("trayApp.circleSecondClickKeepsCircle", app.FloatingVisibleForTest, true);
+                app.CircleForTest.SimulateMouseDownForTest(click);
+                app.CircleForTest.SimulateMouseUpForTest(click);
+                Application.DoEvents();
+                Check("trayApp.circleThirdClickOpens", app.DetailsVisibleForTest, true);
+
+                Check("trayApp.circleToggleZeroQuery", queries, 0);
+
+                // The shared menu exposes settings, visibility and exit;
+                // settings contains only the content chooser.
+                Check("trayApp.menuPresent", app.MenuItemCountForTest, 3);
                 Check("trayApp.menuTopSettings", app.MenuTextForTest(0), "设置");
-                Check("trayApp.menuTopExit", app.MenuTextForTest(1), "退出");
-                Check("trayApp.submenuCount", app.MenuSettingsCountForTest, 6);
-                Check("trayApp.menuHasLock", app.MenuSettingsTextForTest(2), "锁定位置");
-                Check("trayApp.menuHasMotion", app.MenuSettingsTextForTest(3), "减少动画");
-                Check("trayApp.menuHasHome", app.MenuSettingsTextForTest(4), "悬浮窗归位");
-                Check("trayApp.menuHasToggle", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
+                Check("trayApp.menuTopExit", app.MenuTextForTest(2), "退出 ark_left");
+                Check("trayApp.submenuCount", app.MenuSettingsCountForTest, 1);
+                Check("trayApp.menuHasContent", app.MenuSettingsTextForTest(0), "悬浮内容");
+                Check("trayApp.menuHasToggle", app.MenuTextForTest(1), "隐藏悬浮窗");
                 app.ShowDetailsForTest(); // left-click details path, zero query
                 System.Windows.Forms.Application.DoEvents();
                 Check("trayApp.menuViewZeroQuery", queries, 0);
@@ -321,7 +631,7 @@ namespace ArkLeft.Tests
 
         private static void FloatingSelectionCases()
         {
-            // Original API order: agent-plan 5h (75%), weekly (30%), coding monthly (60%).
+            // Agent Plan amounts 750/300/100 share a 1000 total, so all display 10%.
             QuotaSnapshot snap = SyntheticSample.BuildLarge();
             List<FloatingEntry> entries = FloatingSelection.Build(snap);
             Check("selection.count", entries.Count, 8);
@@ -329,7 +639,7 @@ namespace ArkLeft.Tests
             FloatingEntry def = FloatingSelection.Default(entries);
             Check("selection.defaultFirst", def.Label, "5h");
             Check("selection.defaultKnown", def.HasTrustedValue, true);
-            CheckClose("selection.defaultPercent", def.Percent, 75.0);
+            CheckClose("selection.defaultPercent", def.Percent, 10.0);
 
             // Unknown before a known one: default skips to the first trusted value,
             // never the global minimum.
@@ -383,7 +693,7 @@ namespace ArkLeft.Tests
             Check("selection.productKeyContent", keyA, "agent-plan|personal|small");
 
             // Settings ComboBox shows honest per-item state text.
-            Check("selection.comboKnown", entries[0].ComboText.Contains("剩余 75%"), true);
+            Check("selection.comboKnown", entries[0].ComboText.Contains("剩余 10%"), true);
             FloatingEntry unk = FloatingSelection.Build(allUnknown)[0];
             Check("selection.comboUnknown", unk.ComboText.Contains("剩余未知"), true);
             Check("selection.comboError", errEntry.ComboText.Contains("获取失败"), true);
@@ -582,7 +892,7 @@ namespace ArkLeft.Tests
                 Check("settingsMenu.zeroAfterSave", queries, 0);
                 Check("settingsMenu.savedPeriod", app.SelectedPeriodTextForTest, "weekly");
                 Check("settingsMenu.circleSwitched",
-                    app.CircleForTest.PercentTextForTest, "30%");
+                    app.CircleForTest.PercentTextForTest, "10%");
                 Check("settingsMenu.dialogClosed", app.SettingsOpenForTest, false);
 
                 // Cancel from the same production menu keeps the choice.
@@ -630,7 +940,7 @@ namespace ArkLeft.Tests
                 saveTimer.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("settingsMenu.noExtraQueryAfterSave", q2, 1);
-                Check("settingsMenu.viewSwitched", app.CircleForTest.PercentTextForTest, "30%");
+                Check("settingsMenu.viewSwitched", app.CircleForTest.PercentTextForTest, "10%");
             }
         }
 
@@ -1288,7 +1598,7 @@ namespace ArkLeft.Tests
                 Check("floating.entryCount", floating.EntryCountForTest, 8);
                 FloatingEntry selected = floating.SelectedEntryForTest;
                 Check("floating.selectedFirst", selected.Label, "5h");
-                Check("floating.selectedPercentText", floating.CircleForTest.PercentTextForTest, "75%");
+                Check("floating.selectedPercentText", floating.CircleForTest.PercentTextForTest, "10%");
                 Check("floating.selectedTrusted", floating.CircleForTest.PercentKnownForTest, true);
                 Check("floating.defaultNotStored", floating.StoredSettingsForTest, null);
                 // Two separate visible caption lines: short product + period.
@@ -1920,10 +2230,9 @@ namespace ArkLeft.Tests
                 { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
             {
                 app.HideDetailsForTest();
-                Check("prefs2.trayMenuCount", app.MenuItemCountForTest, 2);
-                Check("prefs2.trayMotionItem", app.MenuSettingsTextForTest(3), "减少动画");
-                Check("prefs2.trayHomeItem", app.MenuSettingsTextForTest(4), "悬浮窗归位");
-                Check("prefs2.trayToggleShifted", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
+                Check("prefs2.trayMenuCount", app.MenuItemCountForTest, 3);
+                Check("prefs2.trayContentOnly", app.MenuSettingsCountForTest, 1);
+                Check("prefs2.trayToggleShifted", app.MenuTextForTest(1), "隐藏悬浮窗");
                 Check("prefs2.trayMotionDefaultUnchecked", app.MenuMotionCheckedForTest, false);
                 Check("prefs2.pollBaseUntouched", app.PollIntervalForTest, 300000);
                 app.PerformMenuMotionForTest(); // 减少动画
@@ -2030,6 +2339,187 @@ namespace ArkLeft.Tests
                 Item("agent-plan", "personal", "medium", true,
                     Period("monthly", usedPercent.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         null, null, null))));
+        }
+
+        private static void EffectiveQuotaCases()
+        {
+            ProductQuota p = new ProductQuota();
+            PeriodQuota five = EffectivePeriod("5h", 5000, 10000);
+            PeriodQuota week = EffectivePeriod("weekly", 2000, 4000);
+            PeriodQuota month = EffectivePeriod("monthly", 8000, 16000);
+            p.Periods.Add(five); p.Periods.Add(week); p.Periods.Add(month);
+            EffectivePeriodQuota f = QuotaDisplay.Effective(p, five);
+            EffectivePeriodQuota w = QuotaDisplay.Effective(p, week);
+            EffectivePeriodQuota m = QuotaDisplay.Effective(p, month);
+            CheckClose("effective.min.5h", f.RemainingAmount, 2000);
+            CheckClose("effective.min.week", w.RemainingAmount, 2000);
+            CheckClose("effective.min.month", m.RemainingAmount, 8000);
+            CheckClose("effective.percent.5h", f.RemainingPercent, 20);
+            CheckClose("effective.percent.week", w.RemainingPercent, 50);
+            CheckClose("effective.percent.month", m.RemainingPercent, 50);
+            CheckClose("effective.raw.unchanged", five.RemainingAmount, 5000);
+
+            month.RemainingAmount = 1000;
+            CheckClose("effective.lower.min", QuotaDisplay.Effective(p, five).RemainingAmount, 1000);
+            CheckClose("effective.lower.percent", QuotaDisplay.Effective(p, five).RemainingPercent, 10);
+            CheckClose("effective.lower.doesNotAffectWeekly",
+                QuotaDisplay.Effective(p, week).RemainingAmount, 1000);
+            CheckClose("effective.lower.doesNotAffectMonthly",
+                QuotaDisplay.Effective(p, month).RemainingAmount, 1000);
+
+            PeriodQuota error = EffectivePeriod("error", 1, 100);
+            error.Error = "failed";
+            p.Periods.Add(error);
+            EffectivePeriodQuota failed = QuotaDisplay.Effective(p, error);
+            Check("effective.error.amountUnknown", failed.AmountKnown, false);
+            Check("effective.error.percentUnknown", failed.PercentKnown, false);
+            CheckClose("effective.error.ignoredMinimum",
+                QuotaDisplay.Effective(p, five).RemainingAmount, 1000);
+
+            ProductQuota shuffled = new ProductQuota();
+            PeriodQuota shuffledMonth = EffectivePeriod("monthly", 8000, 16000);
+            PeriodQuota shuffledFive = EffectivePeriod("5h", 5000, 10000);
+            PeriodQuota shuffledWeek = EffectivePeriod("weekly", 2000, 4000);
+            shuffled.Periods.Add(shuffledMonth); shuffled.Periods.Add(shuffledFive);
+            shuffled.Periods.Add(shuffledWeek);
+            CheckClose("effective.shuffled.5h", QuotaDisplay.Effective(
+                shuffled, shuffledFive).RemainingAmount, 2000);
+            CheckClose("effective.shuffled.week", QuotaDisplay.Effective(
+                shuffled, shuffledWeek).RemainingAmount, 2000);
+            CheckClose("effective.shuffled.month", QuotaDisplay.Effective(
+                shuffled, shuffledMonth).RemainingAmount, 8000);
+
+            ProductQuota hierarchy = new ProductQuota();
+            PeriodQuota hFive = EffectivePeriod("5h", 100, 100);
+            PeriodQuota hWeek = EffectivePeriod("weekly", 2000, 4000);
+            PeriodQuota hMonth = EffectivePeriod("monthly", 8000, 16000);
+            hierarchy.Periods.Add(hFive); hierarchy.Periods.Add(hWeek); hierarchy.Periods.Add(hMonth);
+            CheckClose("effective.ownBelowUpper.5h", QuotaDisplay.Effective(
+                hierarchy, hFive).RemainingAmount, 100);
+            CheckClose("effective.ownBelowUpper.week", QuotaDisplay.Effective(
+                hierarchy, hWeek).RemainingAmount, 2000);
+            hFive.RemainingAmount = 5000;
+            hWeek.RemainingAmount = 8000;
+            hMonth.RemainingAmount = 2000;
+            CheckClose("effective.upperLimits.5h", QuotaDisplay.Effective(
+                hierarchy, hFive).RemainingAmount, 2000);
+            CheckClose("effective.upperLimits.week", QuotaDisplay.Effective(
+                hierarchy, hWeek).RemainingAmount, 2000);
+            CheckClose("effective.upperLimits.month", QuotaDisplay.Effective(
+                hierarchy, hMonth).RemainingAmount, 2000);
+
+            hFive.RemainingAmount = 0;
+            CheckClose("effective.zero.lowerDoesNotAffectWeekly", QuotaDisplay.Effective(
+                hierarchy, hWeek).RemainingAmount, 2000);
+            CheckClose("effective.zero.lowerDoesNotAffectMonthly", QuotaDisplay.Effective(
+                hierarchy, hMonth).RemainingAmount, 2000);
+
+            hFive.RemainingAmount = 5000;
+            hWeek.RemainingAmount = 0;
+            CheckClose("effective.zero.weekLimitsFive", QuotaDisplay.Effective(
+                hierarchy, hFive).RemainingAmount, 0);
+            CheckClose("effective.zero.weekDoesNotAffectMonthly", QuotaDisplay.Effective(
+                hierarchy, hMonth).RemainingAmount, 2000);
+
+            hWeek.RemainingAmount = 8000;
+            hMonth.RemainingAmount = 0;
+            CheckClose("effective.zero.monthLimitsFive", QuotaDisplay.Effective(
+                hierarchy, hFive).RemainingAmount, 0);
+            CheckClose("effective.zero.monthLimitsWeekly", QuotaDisplay.Effective(
+                hierarchy, hWeek).RemainingAmount, 0);
+
+            ProductQuota unknownUpper = new ProductQuota();
+            PeriodQuota uFive = EffectivePeriod("5h", 5000, 10000);
+            PeriodQuota uWeek = EffectivePeriod("weekly", 2000, 4000);
+            PeriodQuota uMonth = EffectivePeriod("monthly", 8000, 16000);
+            uWeek.Error = "failed";
+            unknownUpper.Periods.Add(uFive); unknownUpper.Periods.Add(uWeek); unknownUpper.Periods.Add(uMonth);
+            CheckClose("effective.error.upperIgnored", QuotaDisplay.Effective(
+                unknownUpper, uFive).RemainingAmount, 5000);
+            uWeek.Error = null; uWeek.RemainingAmount = double.NaN;
+            CheckClose("effective.invalid.upperIgnored", QuotaDisplay.Effective(
+                unknownUpper, uFive).RemainingAmount, 5000);
+            PeriodQuota unknownLabel = EffectivePeriod("other", 0, 100);
+            unknownUpper.Periods.Add(unknownLabel);
+            CheckClose("effective.unknownLabel.selfOnly", QuotaDisplay.Effective(
+                unknownUpper, unknownLabel).RemainingAmount, 0);
+            unknownLabel.AmountKnown = false;
+            Check("effective.unknownLabel.ownUnknown", QuotaDisplay.Effective(
+                unknownUpper, unknownLabel).AmountKnown, false);
+
+            QuotaSnapshot cacheSnap = new QuotaSnapshot();
+            ProductQuota cacheProduct = new ProductQuota();
+            cacheProduct.Product = "agent-plan"; cacheProduct.SubscribedKnown = true;
+            cacheProduct.Subscribed = true;
+            cacheProduct.Periods.Add(five); cacheProduct.Periods.Add(week);
+            cacheProduct.Periods.Add(month);
+            cacheSnap.Products.Add(cacheProduct);
+            string fingerprint = QueryScope.FromAuth(PopupForm.SampleIdentity()).Fingerprint;
+            CachedSnapshot cache = PersistentStateStore.Decode(PersistentStateStore.Encode(
+                PersistentStateStore.ToCache(cacheSnap, fingerprint)));
+            QuotaSnapshot restored = PersistentStateStore.FromCache(cache);
+            CheckClose("effective.cache.rawFive", restored.Products[0].Periods[0].RemainingAmount, 5000);
+            CheckClose("effective.cache.rawMonth", restored.Products[0].Periods[2].RemainingAmount, 1000);
+            CheckClose("effective.cache.display", QuotaDisplay.Effective(
+                restored.Products[0], restored.Products[0].Periods[0]).RemainingAmount, 1000);
+
+            foreach (double bad in new double[] { double.NaN, double.PositiveInfinity,
+                double.NegativeInfinity, -1 })
+            {
+                PeriodQuota invalid = EffectivePeriod("bad", bad, 100);
+                p.Periods.Add(invalid);
+                Check("effective.invalid.amountUnknown." + bad,
+                    QuotaDisplay.Effective(p, invalid).AmountKnown, false);
+                CheckClose("effective.invalid.minimum." + bad,
+                    QuotaDisplay.Effective(p, five).RemainingAmount, 1000);
+            }
+
+            QuotaSnapshot snap = new QuotaSnapshot();
+            p.Product = "agent-plan"; p.DisplayName = "Agent Plan";
+            p.SubscribedKnown = true; p.Subscribed = true;
+            snap.Products.Add(p);
+            PanelView view = new PanelView(); view.Data = snap;
+            Check("effective.summary.minimum", QuotaSummary.Build(view).Contains(
+                "5 小时：剩余 10%，可用剩余 1000 额度"), true);
+            CheckClose("effective.circle.minimum", FloatingSelection.Build(snap)[0].Percent, 10);
+
+            PeriodQuota zero = EffectivePeriod("zero", 0, 100);
+            p.Periods.Add(zero);
+            CheckClose("effective.zero", QuotaDisplay.Effective(p, zero).RemainingAmount, 0);
+            CheckClose("effective.zero.unknownDoesNotAffectFive", QuotaDisplay.Effective(
+                p, five).RemainingAmount, 1000);
+            CheckClose("effective.zero.unknownDoesNotAffectWeekly", QuotaDisplay.Effective(
+                p, week).RemainingPercent, 25);
+
+            PeriodQuota unknown = new PeriodQuota();
+            unknown.Label = "unknown";
+            p.Periods.Add(unknown);
+            EffectivePeriodQuota u = QuotaDisplay.Effective(p, unknown);
+            Check("effective.unknown.amount", u.AmountKnown, false);
+            Check("effective.unknown.percent", u.PercentKnown, false);
+
+            ProductQuota other = new ProductQuota();
+            PeriodQuota otherPeriod = EffectivePeriod("monthly", 9000, 10000);
+            other.Periods.Add(otherPeriod);
+            CheckClose("effective.product.isolated",
+                QuotaDisplay.Effective(other, otherPeriod).RemainingAmount, 9000);
+
+            PeriodQuota invalidTotal = EffectivePeriod("raw", 50, 100);
+            invalidTotal.Total = 0; invalidTotal.TotalKnown = true;
+            p.Periods.Add(invalidTotal);
+            CheckClose("effective.invalidTotal.rawPercent",
+                QuotaDisplay.Effective(p, invalidTotal).RemainingPercent, 50);
+
+        }
+
+        private static PeriodQuota EffectivePeriod(string label, double amount, double total)
+        {
+            PeriodQuota p = new PeriodQuota();
+            p.Label = label;
+            p.AmountKnown = true; p.RemainingAmount = amount;
+            p.TotalKnown = true; p.Total = total;
+            p.PercentKnown = true; p.RemainingPercent = amount / total * 100.0;
+            return p;
         }
 
         private static void PercentWins()
@@ -3961,10 +4451,352 @@ namespace ArkLeft.Tests
         // first card, focus landing on the first card, and the rounded Region
         // only for the single non-scrolling card shape. All synthetic; zero
         // query, zero clipboard.
+        private static void CompactUiCases()
+        {
+            QuotaBar disposedBar = null;
+            using (PopupForm compact = new PopupForm())
+            {
+                QuotaSnapshot sample = SyntheticSample.BuildLarge();
+                sample.Products.RemoveRange(1, sample.Products.Count - 1);
+                compact.ForceRender(sample);
+                compact.ShowPanel();
+                compact.SetScaleForTest(1.0);
+                Application.DoEvents();
+                Check("compact.widthReadable", compact.Width >= 325 && compact.Width <= 344, true);
+                Check("compact.heightReadable", compact.Height > 185 && compact.Height <= 340, true);
+                Check("compact.noScroll", compact.ContentForTest.VerticalScroll.Visible, false);
+                Check("compact.cardBg", compact.BackColor, Color.FromArgb(250, 251, 252));
+                CheckCardLayout(compact, "compact.fit");
+                CheckPeriodGeometry(compact, "compact.100", 1.0);
+                SaveSpacingPreview(compact, "preview-spacing.png");
+                compact.SetScaleForTest(1.25);
+                Application.DoEvents();
+                CheckPeriodGeometry(compact, "compact.125", 1.25);
+                compact.SetScaleForTest(1.5);
+                Application.DoEvents();
+                CheckPeriodGeometry(compact, "compact.150", 1.5);
+                compact.SetScaleForTest(2.0);
+                Application.DoEvents();
+                CheckPeriodGeometry(compact, "compact.200", 2.0);
+                SaveSpacingPreview(compact, "preview-spacing-200.png");
+                compact.SetScaleForTest(1.0);
+                Application.DoEvents();
+                CheckQuotaBarMotion(compact);
+                foreach (Control card in compact.ContentControls)
+                {
+                    Check("compact.cardTopSpace", card.Controls[0].Top >= 10, true);
+                    foreach (Control child in card.Controls)
+                    {
+                        Check("compact.childInside", card.ClientRectangle.Contains(child.Bounds), true);
+                        Label label = child as Label;
+                        if (label != null)
+                        {
+                            using (Graphics g = label.CreateGraphics())
+                            {
+                                SizeF measured = g.MeasureString(label.Text, label.Font, Math.Max(1, label.Width));
+                                Check("compact.textHeight", measured.Height <= label.Height + 1, true);
+                            }
+                        }
+                    }
+                    Check("compact.cardBottomSpace", card.Height - card.Controls[card.Controls.Count - 1].Bottom
+                        >= 10, true);
+                }
+                using (Bitmap bitmap = new Bitmap(compact.Width, compact.Height))
+                {
+                    compact.DrawToBitmap(bitmap, compact.ClientRectangle);
+                    Check("compact.oceanFrame", bitmap.GetPixel(0, compact.Height / 2).ToArgb(),
+                        Color.FromArgb(158, 211, 226).ToArgb());
+                }
+                Console.WriteLine("compact fixture: " + compact.Width + "x" + compact.Height);
+                disposedBar = FindQuotaBar(compact);
+                CardPanel narrowCard = compact.ContentControls[0] as CardPanel;
+                narrowCard.Width = 300;
+                narrowCard.InvalidateLayout();
+                narrowCard.ForceLayout();
+                Application.DoEvents();
+                CheckPeriodGeometry(compact, "compact.narrow300", 1.0);
+                compact.HidePanel();
+            }
+            Check("compact.motion.dispose", disposedBar != null && !disposedBar.MotionRunningForTest, true);
+
+            using (PopupForm longNotes = new PopupForm())
+            {
+                QuotaSnapshot sample = SyntheticSample.BuildLarge();
+                sample.Products.RemoveRange(1, sample.Products.Count - 1);
+                longNotes.ForceRender(sample);
+                longNotes.ShowPanel();
+                Application.DoEvents();
+                CardPanel before = longNotes.ContentControls[0] as CardPanel;
+                int normalHeight = before.PeriodSurfacesForTest[0].Bounds.Height;
+                sample.Products[0].Periods[0].Error =
+                    "这是一个很长的周期错误说明，用于确认错误文字会完整换行并推动当前周期背景。";
+                sample.Products[0].Periods[1].PercentKnown = false;
+                sample.Products[0].Periods[1].UnknownNote =
+                    "这是一个很长的未知原因说明，用于确认未知文字会完整换行并推动后续周期。";
+                longNotes.ForceRender(sample);
+                Application.DoEvents();
+                CardPanel after = longNotes.ContentControls[0] as CardPanel;
+                CheckPeriodGeometry(longNotes, "compact.longNotes", 1.0);
+                Check("compact.longErrorGrows", after.PeriodSurfacesForTest[0].Bounds.Height
+                    > normalHeight, true);
+                Check("compact.longNoteGap",
+                    after.PeriodSurfacesForTest[1].Bounds.Top
+                    - after.PeriodSurfacesForTest[0].Bounds.Bottom, 8);
+                bool foundLongText = false;
+                foreach (Control child in after.Controls)
+                {
+                    Label label = child as Label;
+                    if (label == null || (label.Text.IndexOf("很长", StringComparison.Ordinal) < 0)) continue;
+                    foundLongText = true;
+                    Check("compact.longTextHeight", TextRenderer.MeasureText(label.Text, label.Font,
+                        new Size(label.Width, 300), TextFormatFlags.WordBreak).Height <= label.Height, true);
+                    Check("compact.longTextInside", after.PeriodSurfacesForTest[0].Bounds.Contains(label.Bounds)
+                        || after.PeriodSurfacesForTest[1].Bounds.Contains(label.Bounds), true);
+                }
+                Check("compact.longTextFound", foundLongText, true);
+                longNotes.HidePanel();
+            }
+
+            using (PopupForm longAmount = new PopupForm())
+            {
+                QuotaSnapshot sample = SyntheticSample.Build();
+                if (sample.Products.Count > 1)
+                    sample.Products.RemoveRange(1, sample.Products.Count - 1);
+                for (int i = 0; i < sample.Products[0].Periods.Count; i++)
+                {
+                    PeriodQuota period = sample.Products[0].Periods[i];
+                    period.AmountKnown = true;
+                    period.RemainingAmount = 1e100;
+                    period.TotalKnown = true;
+                    period.Total = 1e101;
+                    period.PercentKnown = true;
+                    period.RemainingPercent = 10;
+                }
+                longAmount.ForceRender(sample);
+                longAmount.ShowPanel();
+                longAmount.SetScaleForTest(1.0);
+                Application.DoEvents();
+                CheckLongAmount(longAmount, "compact.long.100");
+                longAmount.SetScaleForTest(2.0);
+                Application.DoEvents();
+                CheckLongAmount(longAmount, "compact.long.200");
+                longAmount.HidePanel();
+            }
+
+            using (PopupForm unknown = new PopupForm())
+            {
+                QuotaSnapshot sample = SyntheticSample.Build();
+                sample.Products[0].Periods[0].Error = "failed";
+                sample.Products[0].Periods[0].AmountKnown = false;
+                sample.Products[0].Periods[0].PercentKnown = false;
+                unknown.ForceRender(sample);
+                unknown.ShowPanel();
+                Application.DoEvents();
+                CheckPeriodGeometry(unknown, "compact.error", 1.0);
+                Check("compact.error.noBarMotion", FindQuotaBar(unknown).MotionRunningForTest, false);
+                unknown.HidePanel();
+            }
+        }
+
+        private static void CheckLongAmount(PopupForm form, string tag)
+        {
+            bool found = false;
+            string expected = DisplayNames.Number(1e100) + " 额度";
+            foreach (Control card in form.ContentControls)
+                for (int i = 0; i + 2 < card.Controls.Count; i++)
+                {
+                    QuotaBar bar = card.Controls[i] as QuotaBar;
+                    Label amount = card.Controls[i + 2] as Label;
+                    if (bar == null || amount == null) continue;
+                    found = true;
+                    Check(tag + ".fullTooWide", TextRenderer.MeasureText(expected, amount.Font).Width
+                        > amount.Width, true);
+                    Check(tag + ".scientific", amount.Text.IndexOf("E+", StringComparison.Ordinal) >= 0, true);
+                    Check(tag + ".measured", TextRenderer.MeasureText(amount.Text, amount.Font).Width
+                        <= amount.Width, true);
+                    Check(tag + ".tooltip", form.ToolTipForTest.GetToolTip(amount), expected);
+                }
+            Check(tag + ".found", found, true);
+        }
+
+        private static QuotaBar FindQuotaBar(PopupForm form)
+        {
+            foreach (Control card in form.ContentControls)
+                foreach (Control child in card.Controls)
+                    if (child is QuotaBar) return (QuotaBar)child;
+            return null;
+        }
+
+        private static void SaveSpacingPreview(PopupForm form, string name)
+        {
+            string path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, name);
+            using (Bitmap bitmap = new Bitmap(form.Width, form.Height))
+            {
+                form.DrawToBitmap(bitmap, form.ClientRectangle);
+                bitmap.Save(path);
+            }
+            Console.WriteLine("spacing preview: " + path);
+        }
+
+        private static int ScaleLogical(int logical, double scale)
+        {
+            return (int)Math.Round(logical * scale);
+        }
+
+        private static void CheckPeriodGeometry(PopupForm form, string tag)
+        {
+            CheckPeriodGeometry(form, tag, 1.0);
+        }
+
+        private static void CheckPeriodGeometry(PopupForm form, string tag, double scale)
+        {
+            foreach (Control card in form.ContentControls)
+            {
+                CardPanel panel = card as CardPanel;
+                Check(tag + ".surfaceCount", panel == null ? 0 : panel.PeriodSurfacesForTest.Count,
+                    panel == null ? 0 : Convert.ToInt32(card.Tag));
+                if (panel == null) continue;
+                int edge = ScaleLogical(10, scale);
+                int innerPad = ScaleLogical(10, scale);
+                int topPad = ScaleLogical(8, scale);
+                int rowGap = ScaleLogical(4, scale);
+                int radius = ScaleLogical(8, scale);
+                int expectedWidth = card.ClientSize.Width - edge * 2;
+                int firstBarLeft = -1;
+                int firstBarRight = -1;
+                for (int s = 0; s < panel.PeriodSurfacesForTest.Count; s++)
+                {
+                    CardPanel.PeriodSurface surface = panel.PeriodSurfacesForTest[s];
+                    Check(tag + ".surfaceFill" + s, surface.Fill, Color.FromArgb(240, 244, 248));
+                    Check(tag + ".surfaceRadius" + s, surface.Radius, radius);
+                    Check(tag + ".surfaceLeft" + s, surface.Bounds.Left, edge);
+                    Check(tag + ".surfaceRight" + s, card.ClientSize.Width - surface.Bounds.Right, edge);
+                    Check(tag + ".surfaceWidth" + s, surface.Bounds.Width, expectedWidth);
+                    if (s == panel.PeriodSurfacesForTest.Count - 1)
+                        Check(tag + ".surfaceBottomPad" + s,
+                            card.ClientSize.Height - surface.Bounds.Bottom, edge);
+                    Check(tag + ".surfaceTopPad" + s, surface.Bounds.Top >= 0, true);
+                    if (s == 0 && card.Controls.Count > 0)
+                        Check(tag + ".titleGap", surface.Bounds.Top - card.Controls[0].Bottom,
+                            ScaleLogical(10, scale));
+                    if (s > 0)
+                        Check(tag + ".surfaceGap" + s,
+                            surface.Bounds.Top - panel.PeriodSurfacesForTest[s - 1].Bounds.Bottom,
+                            ScaleLogical(8, scale));
+                }
+                for (int i = 0; i < card.Controls.Count; i++)
+                {
+                    QuotaBar bar = card.Controls[i] as QuotaBar;
+                    if (bar == null || i < 2 || i + 2 >= card.Controls.Count) continue;
+                    Label type = card.Controls[i - 2] as Label;
+                    Label pct = card.Controls[i - 1] as Label;
+                    Label date = card.Controls[i + 1] as Label;
+                    Label amount = card.Controls[i + 2] as Label;
+                    if (type == null || pct == null || date == null || amount == null) continue;
+                    int surfaceIndex = 0;
+                    for (int j = 0; j < i; j++)
+                        if (card.Controls[j] is QuotaBar) surfaceIndex++;
+                    CardPanel.PeriodSurface surface = panel.PeriodSurfacesForTest[surfaceIndex];
+                    Check(tag + ".contentLeft", type.Left, surface.Bounds.Left + innerPad);
+                    Check(tag + ".contentRight", pct.Right, surface.Bounds.Right - innerPad);
+                    Check(tag + ".contentTop", type.Top, surface.Bounds.Top + topPad);
+                    Check(tag + ".auxGap", date.Top - type.Bottom, rowGap);
+                    if (firstBarLeft < 0)
+                    {
+                        firstBarLeft = bar.Left;
+                        firstBarRight = bar.Right;
+                    }
+                    Check(tag + ".barStart", bar.Left, firstBarLeft);
+                    Check(tag + ".barEnd", bar.Right, firstBarRight);
+                    Check(tag + ".surfaceContainsRow", surface.Bounds.Contains(type.Bounds)
+                        && surface.Bounds.Contains(pct.Bounds)
+                        && surface.Bounds.Contains(date.Bounds)
+                        && surface.Bounds.Contains(amount.Bounds), true);
+                    Check(tag + ".typeBar", type.Bounds.IntersectsWith(bar.Bounds), false);
+                    Check(tag + ".barPct", bar.Bounds.IntersectsWith(pct.Bounds), false);
+                    Check(tag + ".barLargest", bar.Width > type.Width && bar.Width > pct.Width, true);
+                    Check(tag + ".firstCenter", Math.Abs(type.Bounds.Top + type.Height / 2
+                        - (bar.Top + bar.Height / 2)) <= 1, true);
+                    Check(tag + ".pctCenter", Math.Abs(pct.Bounds.Top + pct.Height / 2
+                        - (bar.Top + bar.Height / 2)) <= 1, true);
+                    Check(tag + ".dateNoLabel", date.Text.IndexOf("重置", StringComparison.Ordinal) < 0, true);
+                    Check(tag + ".dateLeft", date.Left, type.Left);
+                    Check(tag + ".amountRight", amount.Right, pct.Right);
+                    Check(tag + ".secondNoOverlap", date.Bounds.IntersectsWith(amount.Bounds), false);
+                    Check(tag + ".barHeight", bar.Height, ScaleLogical(6, scale));
+                    Check(tag + ".dateMeasured", TextRenderer.MeasureText(date.Text, date.Font).Width
+                        <= date.Width, true);
+                    Check(tag + ".amountMeasured", TextRenderer.MeasureText(amount.Text, amount.Font).Width
+                        <= amount.Width, true);
+                    Check(tag + ".dateHeight", TextRenderer.MeasureText(date.Text, date.Font,
+                        new Size(date.Width, 100), TextFormatFlags.WordBreak).Height <= date.Height, true);
+                    Check(tag + ".amountHeight", TextRenderer.MeasureText(amount.Text, amount.Font,
+                        new Size(amount.Width, 100), TextFormatFlags.WordBreak).Height <= amount.Height, true);
+                    Check(tag + ".inside", card.ClientRectangle.Contains(type.Bounds)
+                        && card.ClientRectangle.Contains(bar.Bounds)
+                        && card.ClientRectangle.Contains(pct.Bounds)
+                        && card.ClientRectangle.Contains(date.Bounds)
+                        && card.ClientRectangle.Contains(amount.Bounds), true);
+                    if (amount.Text.IndexOf("E+", StringComparison.Ordinal) >= 0)
+                        Check(tag + ".longTooltip", form.ToolTipForTest.GetToolTip(amount).Contains("额度"), true);
+                }
+            }
+        }
+
+        private static void CheckQuotaBarMotion(PopupForm form)
+        {
+            QuotaBar bar = FindQuotaBar(form);
+            Check("compact.motion.exists", bar != null, true);
+            if (bar == null) return;
+            Check("compact.motion.static", bar.MotionRunningForTest, false);
+            int phase = bar.PhaseForTest;
+            double value = bar.Value;
+            bar.TickForTest();
+            Check("compact.motion.valueStable", bar.Value, value);
+            Check("compact.motion.noTick", bar.PhaseForTest, phase);
+            form.HidePanel();
+            Check("compact.motion.hidden", bar.MotionRunningForTest, false);
+            form.ShowPanel();
+            Check("compact.motion.reopenStatic", bar.MotionRunningForTest, false);
+            form.SetReduceMotion(true);
+            Check("compact.motion.reduced", bar.MotionRunningForTest, false);
+            form.HidePanel();
+            form.ShowPanel();
+            Check("compact.motion.reducedAcrossHide", bar.MotionRunningForTest, false);
+            form.SetReduceMotion(false);
+            Check("compact.motion.restoredStatic", bar.MotionRunningForTest, false);
+            bar.Value = 0;
+            Check("compact.motion.zero", bar.MotionRunningForTest, false);
+            bar.Value = -1;
+            Check("compact.motion.unknown", bar.MotionRunningForTest, false);
+        }
+
         private static void CardOnlyUX022Cases()
         {
             Rectangle wa = System.Windows.Forms.Screen.PrimaryScreen.WorkingArea;
             QuotaSnapshot big = SyntheticSample.BuildLarge();
+            CompactUiCases();
+
+            using (FloatingCircleControl circle = new FloatingCircleControl())
+            {
+                circle.ShowAt(wa, 1.0);
+                circle.SetReduceMotion(true);
+                foreach (double percent in new double[] { 0, 50, 100 })
+                {
+                    circle.SetDisplay(new FloatingDisplay { HasData = true, PercentKnown = true,
+                        Percent = percent, PercentText = percent + "%" });
+                    using (Bitmap bitmap = new Bitmap(circle.Width, circle.Height))
+                    {
+                        circle.DrawToBitmap(bitmap, circle.ClientRectangle);
+                        Color top = bitmap.GetPixel(circle.Width / 2, 12);
+                        Check("circle.skyOrWhite", top.ToArgb(), (percent == 100
+                            ? Color.FromArgb(135, 206, 235) : Color.White).ToArgb());
+                        Color ring = bitmap.GetPixel(0, circle.Height / 2);
+                        Check("circle.grayRing", Math.Abs(ring.R - ring.G) <= 1
+                            && Math.Abs(ring.G - ring.B) <= 1, true);
+                    }
+                }
+            }
 
             using (PopupForm form = new PopupForm())
             {
@@ -4018,7 +4850,7 @@ namespace ArkLeft.Tests
                 Check("ux022.overflow.widthShrunk",
                     content.Controls[0].Width < form.ClientSize.Width
                         && content.Controls[0].Width >= form.ClientSize.Width
-                            - SystemInformation.VerticalScrollBarWidth - 1,
+                            - SystemInformation.VerticalScrollBarWidth - 2,
                     true);
                 Check("ux022.overflow.noRounding", form.Region == null, true);
                 Control last2 = content.Controls[content.Controls.Count - 1];
@@ -4071,16 +4903,16 @@ namespace ArkLeft.Tests
                 form.HidePanel();
             }
 
-            // Single message card: the window IS that rounded card.
+            // Single message card: fits inside the one-pixel outer frame.
             using (PopupForm form = new PopupForm())
             {
                 form.BeginLayoutSession(System.Windows.Forms.Screen.PrimaryScreen);
                 form.ForceLoading();
                 Check("ux022.single.count", form.ContentCardCount, 1);
-                Check("ux022.single.region", form.Region != null, true);
+                Check("ux022.single.region", form.Region == null, true);
                 Control card = form.ContentControls[0];
                 Check("ux022.single.hug",
-                    card.Width == form.ClientSize.Width && card.Height == form.ClientSize.Height,
+                    card.Width == form.ClientSize.Width - 2 && card.Height == form.ClientSize.Height - 2,
                     true);
                 CheckCardLayout(form, "ux022.single.fit");
             }
@@ -4288,7 +5120,7 @@ namespace ArkLeft.Tests
                 Check("home.appAtHome", circle.Bounds,
                     FloatingCircleControl.InitialBounds(scr.WorkingArea, DpiUtil.GetScale(scr)));
                 Check("home.appZeroQuery", queries, 0);
-                Check("home.appToggleText", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
+                Check("home.appToggleText", app.MenuTextForTest(1), "隐藏悬浮窗");
                 Check("home.appPollVisible", app.PollIntervalForTest, 10000);
             }
 
@@ -4313,7 +5145,7 @@ namespace ArkLeft.Tests
                 Check("home.hiddenAppNoSave", app.LockFailNotifyCountForTest, 0);
                 Check("home.hiddenAppZeroQuery", queries2, 0);
                 Check("home.hiddenAppPollVisible", app.PollIntervalForTest, 10000);
-                Check("home.hiddenAppToggleText", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
+                Check("home.hiddenAppToggleText", app.MenuTextForTest(1), "隐藏悬浮窗");
             }
 
             // Settings modal up: a programmatic 归位 click must do NOTHING
@@ -4361,7 +5193,7 @@ namespace ArkLeft.Tests
             }
         }
 
-        // ---- v0.15 UX023: shared [设置(子菜单), 退出] menu; the 设置 submenu
+        // ---- Shared settings / visibility / exit menu; the 设置 submenu
         // expands natively to the side (never a modal) and lists 悬浮内容
         // directly, saving FIRST and only applying a successful save. ----
         private static void FloatingMenuUX023Cases()
@@ -4372,15 +5204,12 @@ namespace ArkLeft.Tests
                 { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
             {
                 app.HideDetailsForTest();
-                Check("ux023.topCount", app.MenuItemCountForTest, 2);
+                Check("ux023.topCount", app.MenuItemCountForTest, 3);
                 Check("ux023.topSettings", app.MenuTextForTest(0), "设置");
-                Check("ux023.topExit", app.MenuTextForTest(1), "退出");
-                Check("ux023.submenuCount", app.MenuSettingsCountForTest, 6);
+                Check("ux023.topExit", app.MenuTextForTest(2), "退出 ark_left");
+                Check("ux023.submenuCount", app.MenuSettingsCountForTest, 1);
                 Check("ux023.submenuContent", app.MenuSettingsTextForTest(0), "悬浮内容");
-                Check("ux023.submenuLock", app.MenuSettingsTextForTest(2), "锁定位置");
-                Check("ux023.submenuMotion", app.MenuSettingsTextForTest(3), "减少动画");
-                Check("ux023.submenuHome", app.MenuSettingsTextForTest(4), "悬浮窗归位");
-                Check("ux023.submenuToggle", app.MenuSettingsTextForTest(5), "隐藏悬浮窗");
+                Check("ux023.topToggle", app.MenuTextForTest(1), "隐藏悬浮窗");
 
                 // Clicking 设置 expands the native side dropdown and NEVER opens
                 // the settings modal (zero query).
@@ -4472,10 +5301,11 @@ namespace ArkLeft.Tests
                 delegate { return (FloatingPreferences)null; },
                 delegate(FloatingPreferences p) { return true; }))
             {
-                Check("ux023.formTopCount", f.DefaultMenuTopCountForTest, 2);
+                Check("ux023.formTopCount", f.DefaultMenuTopCountForTest, 3);
                 Check("ux023.formTopSettings", f.DefaultMenuTopTextForTest(0), "设置");
-                Check("ux023.formTopExit", f.DefaultMenuTopTextForTest(1), "退出");
-                Check("ux023.formSubmenuCount", f.DefaultMenuSettingsCountForTest, 6);
+                Check("ux023.formTopToggle", f.DefaultMenuTopTextForTest(1), "显示悬浮窗");
+                Check("ux023.formTopExit", f.DefaultMenuTopTextForTest(2), "退出 ark_left");
+                Check("ux023.formSubmenuCount", f.DefaultMenuSettingsCountForTest, 1);
                 Check("ux023.formSubmenuContent", f.DefaultMenuSettingsTextForTest(0), "悬浮内容");
                 f.PerformDefaultMenuSettingsForTest();
                 Check("ux023.formDropDownRequested",

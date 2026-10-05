@@ -5,6 +5,53 @@ using System.Windows.Forms;
 
 namespace ArkLeft
 {
+    internal sealed class ToggleMenuItem : ToolStripMenuItem
+    {
+        private bool _mousePress;
+        private bool _wasOpen;
+        internal Control FloatingCircle;
+        internal Func<bool> IsCircleMenu;
+
+        public ToggleMenuItem(string text) : base(text) { }
+
+        protected override Point DropDownLocation
+        {
+            get
+            {
+                Point native = base.DropDownLocation;
+                if (FloatingCircle == null || IsCircleMenu == null || !IsCircleMenu()
+                    || !FloatingCircle.Visible) return native;
+                return UiStyle.SubmenuLocation(this, FloatingCircle, native);
+            }
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                _mousePress = true;
+                _wasOpen = DropDown.Visible;
+                if (_wasOpen) return;
+            }
+            base.OnMouseDown(e);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            try { base.OnMouseUp(e); }
+            finally { _mousePress = false; }
+        }
+
+        protected override void OnClick(EventArgs e)
+        {
+            bool close = _mousePress ? _wasOpen : DropDown.Visible;
+            base.OnClick(e);
+            if (Owner == null || !Owner.Visible || !HasDropDownItems) return;
+            if (close) HideDropDown();
+            else ShowDropDown();
+        }
+    }
+
     internal static class UiStyle
     {
         public static readonly Color Navy = Color.FromArgb(25, 49, 70);
@@ -57,6 +104,100 @@ namespace ArkLeft
             {
                 item.Padding = new Padding(8, 5, 8, 5);
             }
+        }
+
+        public static void AttachFloatingMenu(ContextMenuStrip menu,
+            ToolStripMenuItem settings, ToolStripMenuItem content, Control circle)
+        {
+            bool circleOpening = false;
+            ToggleMenuItem settingsToggle = settings as ToggleMenuItem;
+            ToggleMenuItem contentToggle = content as ToggleMenuItem;
+            if (settingsToggle != null)
+            {
+                settingsToggle.FloatingCircle = circle;
+                settingsToggle.IsCircleMenu = delegate { return circleOpening; };
+            }
+            if (contentToggle != null)
+            {
+                contentToggle.FloatingCircle = circle;
+                contentToggle.IsCircleMenu = delegate { return circleOpening; };
+            }
+            menu.Opening += delegate
+            {
+                circleOpening = ReferenceEquals(menu.SourceControl, circle) && circle.Visible;
+                settings.DropDownDirection = content.DropDownDirection =
+                    ToolStripDropDownDirection.Default;
+            };
+            menu.Closed += delegate { circleOpening = false; };
+            menu.Opened += delegate
+            {
+                if (!circleOpening) return;
+                Rectangle work = Screen.FromControl(circle).WorkingArea;
+                Rectangle anchor = circle.Bounds;
+                bool left = work.Right - anchor.Right < menu.Width + FloatingLayout.Gap
+                    && (anchor.Left - work.Left >= menu.Width + FloatingLayout.Gap
+                        || anchor.Left - work.Left > work.Right - anchor.Right);
+                DetailsPlacement side = left ? DetailsPlacement.Left : DetailsPlacement.Right;
+                Rectangle bounds = FloatingLayout.Bounds(side, anchor,
+                    new Rectangle(Point.Empty, menu.Size), work);
+                if (bounds.IntersectsWith(anchor))
+                    bounds = FloatingLayout.Bounds(FloatingLayout.Choose(anchor,
+                        new Rectangle(Point.Empty, menu.Size), work), anchor,
+                        new Rectangle(Point.Empty, menu.Size), work);
+                menu.Location = bounds.Location;
+            };
+            settings.DropDownOpening += delegate
+            {
+                if (circleOpening) ChooseSubmenuDirection(settings, circle);
+            };
+            content.DropDownOpening += delegate
+            {
+                if (circleOpening) ChooseSubmenuDirection(content, circle);
+            };
+        }
+
+        private static void ChooseSubmenuDirection(ToolStripMenuItem item, Control circle)
+        {
+            if (item.Owner == null) return;
+            Rectangle work = Screen.FromControl(circle).WorkingArea;
+            Rectangle parent = item.Owner.Bounds;
+            Size size = item.DropDown.GetPreferredSize(Size.Empty);
+            int y = item.Owner.PointToScreen(item.Bounds.Location).Y;
+            y = Math.Max(work.Top, Math.Min(y, work.Bottom - size.Height));
+            Rectangle rightBounds = new Rectangle(parent.Right, y, size.Width, size.Height);
+            Rectangle leftBounds = new Rectangle(parent.Left - size.Width, y, size.Width, size.Height);
+            bool rightClear = work.Contains(rightBounds) && !rightBounds.IntersectsWith(circle.Bounds);
+            bool leftClear = work.Contains(leftBounds) && !leftBounds.IntersectsWith(circle.Bounds);
+            bool left = !rightClear && (leftClear || (work.Right - parent.Right < size.Width
+                && (parent.Left - work.Left >= size.Width
+                    || parent.Left - work.Left > work.Right - parent.Right)));
+            item.DropDownDirection = left ? ToolStripDropDownDirection.Left
+                : ToolStripDropDownDirection.Right;
+        }
+
+        internal static Point SubmenuLocation(ToolStripMenuItem item, Control circle, Point native)
+        {
+            Rectangle work = Screen.FromControl(circle).WorkingArea;
+            Size size = item.DropDown.GetPreferredSize(Size.Empty);
+            int x = Math.Max(work.Left, Math.Min(native.X, work.Right - size.Width));
+            int y = Math.Max(work.Top, Math.Min(native.Y, work.Bottom - size.Height));
+            if (new Rectangle(x, y, size.Width, size.Height).IntersectsWith(circle.Bounds))
+            {
+                int above = circle.Top - size.Height - FloatingLayout.Gap;
+                int below = circle.Bottom + FloatingLayout.Gap;
+                if (above >= work.Top && (below + size.Height > work.Bottom
+                    || circle.Top - work.Top >= work.Bottom - circle.Bottom)) y = above;
+                else if (below + size.Height <= work.Bottom) y = below;
+                else if (above >= work.Top) y = above;
+                else
+                {
+                    int otherX = x < circle.Left ? circle.Right + FloatingLayout.Gap
+                        : circle.Left - size.Width - FloatingLayout.Gap;
+                    if (otherX >= work.Left && otherX + size.Width <= work.Right)
+                        x = otherX;
+                }
+            }
+            return new Point(x, y);
         }
 
         // Small drawn "settings" glyph for the details header (a gear: a disc

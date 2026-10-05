@@ -92,34 +92,35 @@ namespace ArkLeft
                 PeriodQuota q = p.Periods[i];
                 if (q == null) continue;   // defensive: never throw on null
                 sb.Append("\r\n");
-                AppendPeriod(sb, q);
+                 AppendPeriod(sb, p, q);
             }
         }
 
-        private static void AppendPeriod(StringBuilder sb, PeriodQuota q)
+        private static void AppendPeriod(StringBuilder sb, ProductQuota product, PeriodQuota q)
         {
+            EffectivePeriodQuota effective = QuotaDisplay.Effective(product, q);
             sb.Append("- ").Append(string.IsNullOrEmpty(q.LabelDisplay)
                 ? DisplayNames.Period(q.Label) : q.LabelDisplay).Append("：");
             if (q.Error != null) { sb.Append(PeriodFailed); return; }
-            sb.Append(q.PercentKnown
-                ? PercentFormat.RemainingForBar(q.RemainingPercent) : UnknownPercent);
-            sb.Append(q.AmountKnown
-                ? "，可用剩余 " + DisplayNames.Number(q.RemainingAmount) + " 额度"
+            sb.Append(effective.PercentKnown
+                ? PercentFormat.RemainingForBar(effective.RemainingPercent) : UnknownPercent);
+            sb.Append(effective.AmountKnown
+                ? "，可用剩余 " + DisplayNames.Number(effective.RemainingAmount) + " 额度"
                 : "，" + UnknownAmount);
             sb.Append(q.HasReset
                 ? "，" + DisplayNames.FormatTime(q.ResetLocal) + " 重置"
                 : "，" + UnknownReset);
-            string note = SafeUnknownNote(q);
+            string note = SafeUnknownNote(q, effective);
             if (note != null) sb.Append("（").Append(note).Append("）");
         }
 
         // Fixes the note from SAFE model flags only; the upstream UnknownNote
         // text is never echoed (a secret sentinel must not survive).
-        private static string SafeUnknownNote(PeriodQuota q)
+        private static string SafeUnknownNote(PeriodQuota q, EffectivePeriodQuota effective)
         {
             if (string.IsNullOrEmpty(q.UnknownNote)) return null;
             if (q.Clamped) return ClampNote;
-            if (!q.PercentKnown)
+            if (!effective.PercentKnown)
                 return (q.TotalKnown && q.Total == 0.0) ? TotalZeroNote : MissingNote;
             return null;
         }

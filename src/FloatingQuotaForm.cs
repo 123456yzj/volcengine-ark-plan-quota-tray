@@ -261,8 +261,9 @@ namespace ArkLeft
                     e.ProductShort = DisplayNames.Product(pq.Product);
                     e.PeriodTitle = p.LabelDisplay != null ? p.LabelDisplay
                         : DisplayNames.Period(p.Label);
-                    e.PercentKnown = p.PercentKnown;
-                    e.Percent = p.RemainingPercent;
+                    EffectivePeriodQuota effective = QuotaDisplay.Effective(pq, p);
+                    e.PercentKnown = effective.PercentKnown;
+                    e.Percent = effective.RemainingPercent;
                     e.ProductSubscribedKnown = pq.SubscribedKnown;
                     e.ProductSubscribed = pq.Subscribed;
                     e.ProductError = pq.Error != null;
@@ -417,6 +418,7 @@ namespace ArkLeft
     internal class FloatingCircleControl : Form
     {
         public event EventHandler DetailsRequested;
+        public event EventHandler DragStarted;
         // Raised when the circle is hidden by an explicit user action (Esc /
         // WM_CLOSE). The owner clears its layout auto-hide flag so a later
         // details-close cannot pull the circle back.
@@ -515,7 +517,7 @@ namespace ArkLeft
             StartPosition = FormStartPosition.Manual;
             AutoScaleMode = AutoScaleMode.None;
             KeyPreview = true;
-            BackColor = UiStyle.Navy;
+            BackColor = Color.White;
             DoubleBuffered = true;
             Text = "方舟剩余额度";
             AccessibleName = "方舟剩余额度悬浮圆圈";
@@ -655,7 +657,6 @@ namespace ArkLeft
             _productCaption = d == null ? "" : (d.ProductCaption ?? "");
             _periodCaption = d == null ? "" : (d.PeriodCaption ?? "");
             _tooltip = d == null ? "暂无数据" : (d.Tooltip ?? "");
-            try { _tip.SetToolTip(this, _tooltip); } catch (Exception) { }
             UpdateWaveState();
             if (Visible) Invalidate();
         }
@@ -714,7 +715,10 @@ namespace ArkLeft
             int dy = cur.Y - _downScreen.Y;
             int threshold = (int)Math.Round(DragThresholdLogical * _scale);
             if (!_dragging && (Math.Abs(dx) > threshold || Math.Abs(dy) > threshold))
+            {
                 _dragging = true;
+                if (!_positionLocked && DragStarted != null) DragStarted(this, EventArgs.Empty);
+            }
             if (!_dragging) return;
             if (_positionLocked) return; // locked: never move (release still swallowed)
             Rectangle b = new Rectangle(_downLocation.X + dx, _downLocation.Y + dy,
@@ -808,14 +812,14 @@ namespace ArkLeft
         {
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.Clear(UiStyle.Navy);
+            g.Clear(Color.White);
 
             float w = Width - 1, h = Height - 1;
             // 0 = empty, 100 = fully filled (solid water, no sine notch);
             // intermediate values draw layered waves.
             if (_hasData && _percentKnown && _percent >= 100)
             {
-                using (SolidBrush full = new SolidBrush(Color.FromArgb(132, 24, 166, 145)))
+                using (SolidBrush full = new SolidBrush(Color.FromArgb(135, 206, 235)))
                     g.FillRectangle(full, 0, 0, Width, Height);
             }
             else if (_hasData && _percentKnown && _percent > 0)
@@ -826,19 +830,19 @@ namespace ArkLeft
             }
 
             using (Pen ring = new Pen(_hovered || Focused
-                ? Color.FromArgb(230, 103, 219, 185) : Color.FromArgb(150, 130, 174, 190),
+                ? Color.FromArgb(130, 130, 130) : Color.FromArgb(180, 180, 180),
                 Math.Max(1.5f, w * (_hovered || Focused ? 0.022f : 0.012f))))
                 g.DrawEllipse(ring, 0.5f, 0.5f, w, h);
 
             StringFormat center = new StringFormat();
             center.Alignment = StringAlignment.Center;
             center.LineAlignment = StringAlignment.Center;
-            using (SolidBrush white = new SolidBrush(Color.FromArgb(250, 253, 255)))
+            using (SolidBrush white = new SolidBrush(UiStyle.Navy))
                 g.DrawString(_percentText, _percentFont, white,
                     new RectangleF(0, 0, w, h * 0.64f), center);
             if (_productCaption.Length > 0)
             {
-                using (SolidBrush soft = new SolidBrush(Color.FromArgb(198, 222, 238)))
+                using (SolidBrush soft = new SolidBrush(UiStyle.Navy))
                 {
                     // Product line: long names ellipsize, but the period line is
                     // always drawn separately below so it is never truncated away.
@@ -878,8 +882,8 @@ namespace ArkLeft
                     path.AddLine(w, WaveY(baseTop, amp, phaseX, w, w), w, h);
                     path.CloseFigure();
                     Color c = layer == 0
-                        ? Color.FromArgb(80, 150, 196, 224)
-                        : Color.FromArgb(140, 40, 186, 214);
+                        ? Color.FromArgb(190, 226, 243)
+                        : Color.FromArgb(135, 206, 235);
                     using (SolidBrush b = new SolidBrush(c)) g.FillPath(b, path);
                 }
             }
@@ -922,6 +926,7 @@ namespace ArkLeft
         internal string ProductCaptionForTest { get { return _productCaption; } }
         internal string PeriodCaptionForTest { get { return _periodCaption; } }
         internal string TooltipForTest { get { return _tooltip; } }
+        internal string HoverTooltipForTest { get { return _tip.GetToolTip(this); } }
         internal bool DraggingForTest { get { return _dragging; } }
 
         // Dispatch through the PRODUCTION mouse handlers so the real drag
@@ -1440,6 +1445,7 @@ namespace ArkLeft
         private string _lockHint;
 
         public event EventHandler DetailsRequested;
+        public event EventHandler DragStarted;
         public event EventHandler SettingsRequested;
         public event EventHandler ExitRequested;
         // v0.8 UX016: raised after any lock toggle attempt (success or save
@@ -1508,6 +1514,11 @@ namespace ArkLeft
             {
                 if (DetailsRequested != null) DetailsRequested(this, EventArgs.Empty);
             };
+            _circle.DragStarted += delegate
+            {
+                if (_menu != null) _menu.Close();
+                if (DragStarted != null) DragStarted(this, EventArgs.Empty);
+            };
             _menu = BuildDefaultMenu();
             _circle.ContextMenuStrip = _menu;
             _circle.AllowClose = false;
@@ -1530,35 +1541,28 @@ namespace ArkLeft
 
         private ContextMenuStrip BuildDefaultMenu()
         {
-            // v0.15 UX023: top level is only [设置(子菜单), 退出]; the left
-            // click (details) is unchanged and the default menu never opens the
-            // settings modal. The 设置 submenu expands natively to the side and
-            // holds the 悬浮内容 chooser plus the existing toggles.
+            // Match the shared tray menu: content selection, visibility, exit.
+            // Keep the existing preference handlers without exposing entries.
             ContextMenuStrip menu = new ContextMenuStrip();
-            _settingsItem = new ToolStripMenuItem("设置");
-            _contentItem = new ToolStripMenuItem("悬浮内容");
+            _settingsItem = new ToggleMenuItem("设置");
+            _contentItem = new ToggleMenuItem("悬浮内容");
             _settingsItem.DropDownItems.Add(_contentItem);
-            _settingsItem.DropDownItems.Add(new ToolStripSeparator());
             // v0.8 UX016: shared checkable "锁定位置" (same state / handler as
             // the tray menu item; TrayApp syncs via PositionLockChanged).
             _lockItem = new ToolStripMenuItem("锁定位置");
             _lockItem.CheckOnClick = false; // state is owned by the handler
             _lockItem.Click += delegate { TogglePositionLocked(); };
-            _settingsItem.DropDownItems.Add(_lockItem);
             // v0.9 UX017: checkable "减少动画"; same state / handler as the
             // tray menu item.
             _motionItem = new ToolStripMenuItem("减少动画");
             _motionItem.CheckOnClick = false; // state is owned by the handler
             _motionItem.Click += delegate { ToggleReduceMotion(); };
-            _settingsItem.DropDownItems.Add(_motionItem);
-            // v0.12 UX020: "悬浮窗归位" (moved into the 设置 submenu).
+            // Retain the re-home handler for existing callers.
             _homeItem = new ToolStripMenuItem("悬浮窗归位", null,
                 delegate { RepositionCircleHome(); UpdateToggleItemText(); });
-            _settingsItem.DropDownItems.Add(_homeItem);
-            // v0.13 UX021: show / hide toggle (moved into the 设置 submenu).
+            // The visibility toggle is a top-level entry.
             _toggleItem = new ToolStripMenuItem("隐藏悬浮窗", null,
                 delegate { ToggleCircleForMenu(); });
-            _settingsItem.DropDownItems.Add(_toggleItem);
             // Explicit native side expansion on click (never a modal). Guarded
             // so an offline PerformClick on a never-shown strip records the
             // intent without creating a real popup window.
@@ -1570,9 +1574,12 @@ namespace ArkLeft
                 UpdateToggleItemText();
             };
             menu.Items.Add(_settingsItem);
-            menu.Items.Add("退出", null, delegate { RaiseExit(); });
+            menu.Items.Add(_toggleItem);
+            menu.Items.Add("退出 ark_left", null, delegate { RaiseExit(); });
             PopulateContentMenu(_contentItem);
             SyncPrefMenuChecks();
+            UpdateToggleItemText();
+            UiStyle.AttachFloatingMenu(menu, _settingsItem, _contentItem, _circle);
             return menu;
         }
 
@@ -1583,11 +1590,6 @@ namespace ArkLeft
         private void RequestSettingsDropDown()
         {
             _settingsDropDownRequested = true;
-            try
-            {
-                if (_menu != null && _menu.Visible) _settingsItem.ShowDropDown();
-            }
-            catch (Exception) { }
         }
 
         // v0.15 UX023: rebuild the 悬浮内容 candidates from the CURRENT
@@ -2412,6 +2414,9 @@ namespace ArkLeft
                 // empty queue and exits safely).
                 DrainPendingContentItems();
                 if (_menu != null) { try { _menu.Dispose(); } catch (Exception) { } _menu = null; }
+                if (_lockItem != null) _lockItem.Dispose();
+                if (_motionItem != null) _motionItem.Dispose();
+                if (_homeItem != null) _homeItem.Dispose();
                 if (_circle != null) { try { _circle.Dispose(); } catch (Exception) { } }
             }
             base.Dispose(disposing);

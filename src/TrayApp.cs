@@ -89,9 +89,9 @@ namespace ArkLeft
     {
         public const int LogicalMinWidth = 404;
         public const int LogicalMaxWidth = 440;
-        // UX022 v0.14: card-only popup width — the old 440dp window minus its
-        // outer whitespace, i.e. roughly the width the cards already had.
-        public const int LogicalCardWidth = 406;
+        // Two-line period rows need room for the label, a broad bar, and the
+        // right-aligned percentage/amount without wrapping at normal DPI.
+        public const int LogicalCardWidth = 340;
         public const int LogicalDesiredHeight = 560;
         public const int LogicalMinHeight = 420;
         public const int Margin = 8;
@@ -119,6 +119,20 @@ namespace ArkLeft
     // A card that explicitly re-lays-out its children from its OWN actual width.
     internal class CardPanel : Panel
     {
+        internal sealed class PeriodSurface
+        {
+            public Rectangle Bounds;
+            public Color Fill;
+            public int Radius;
+
+            public PeriodSurface(Rectangle bounds, Color fill, int radius)
+            {
+                Bounds = bounds;
+                Fill = fill;
+                Radius = radius;
+            }
+        }
+
         public CardPanel()
         {
             // UX022 v0.14: the card itself is the focusable detail surface.
@@ -136,6 +150,7 @@ namespace ArkLeft
         public int PadX;
         private int _laidOutWidth = -1;
         private Region _cardRegion;
+        private List<PeriodSurface> _periodSurfaces = new List<PeriodSurface>();
         // Already DPI-scaled corner radius. DrawCardBorder uses the SAME value
         // so the clipped region and the drawn border never disagree per DPI.
         private int _regionRadius = 12;
@@ -210,6 +225,31 @@ namespace ArkLeft
         public void InvalidateLayout()
         {
             _laidOutWidth = -1;
+        }
+
+        public void SetPeriodSurfaces(List<PeriodSurface> surfaces)
+        {
+            _periodSurfaces = surfaces ?? new List<PeriodSurface>();
+            Invalidate();
+        }
+
+        internal List<PeriodSurface> PeriodSurfacesForTest
+        {
+            get { return _periodSurfaces; }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            for (int i = 0; i < _periodSurfaces.Count; i++)
+            {
+                PeriodSurface surface = _periodSurfaces[i];
+                if (surface.Bounds.Width < 2 || surface.Bounds.Height < 2) continue;
+                using (GraphicsPath path = UiStyle.RoundedRectangle(surface.Bounds, surface.Radius))
+                using (SolidBrush brush = new SolidBrush(surface.Fill))
+                    e.Graphics.FillPath(brush, path);
+            }
+            base.OnPaint(e);
         }
     }
 
@@ -292,6 +332,10 @@ namespace ArkLeft
     internal class QuotaBar : Control
     {
         private double _value = -1;
+        private bool _reduceMotion;
+        private bool _motionAllowed = true;
+        private int _phase;
+        private System.Windows.Forms.Timer _motion;
 
         public QuotaBar()
         {
@@ -305,7 +349,72 @@ namespace ArkLeft
         public double Value
         {
             get { return _value; }
-            set { _value = value; Invalidate(); }
+            set { _value = value; UpdateMotion(); Invalidate(); }
+        }
+
+        public bool ReduceMotion
+        {
+            get { return _reduceMotion; }
+            set { if (_reduceMotion == value) return; _reduceMotion = value; UpdateMotion(); Invalidate(); }
+        }
+
+        private bool AnimatedValue { get { return _value > 0 && _value <= 100; } }
+
+        private void UpdateMotion()
+        {
+            // The bar is intentionally static; there is no animated pixel to update.
+            if (_motion != null) _motion.Stop();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            UpdateMotion();
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            if (_motion != null) _motion.Stop();
+            base.OnHandleDestroyed(e);
+        }
+
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+            UpdateMotion();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && _motion != null)
+            {
+                _motion.Stop();
+                _motion.Dispose();
+                _motion = null;
+            }
+            base.Dispose(disposing);
+        }
+
+        internal bool MotionRunningForTest
+        {
+            get { return _motion != null && _motion.Enabled; }
+        }
+
+        internal int PhaseForTest { get { return _phase; } }
+
+        internal void SetMotionAllowed(bool allowed)
+        {
+            _motionAllowed = allowed;
+            UpdateMotion();
+        }
+
+        internal void TickForTest()
+        {
+            if (_motion != null && _motion.Enabled)
+            {
+                _phase = (_phase + 2) % 1000;
+                Invalidate();
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -318,7 +427,7 @@ namespace ArkLeft
             int radius = Math.Max(2, (Height - 1) / 2);
             Rectangle track = new Rectangle(0, 0, Width - 1, Height - 1);
             using (GraphicsPath tp = RoundRect(track, radius))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(231, 237, 239)))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(226, 232, 240)))
                 g.FillPath(tb, tp);
 
             if (_value >= 0)
@@ -339,11 +448,15 @@ namespace ArkLeft
                     int fr = Math.Min(radius, fillW / 2);
                     if (fr < 1) fr = 1;
                     using (GraphicsPath fp = RoundRect(fill, fr))
-                    using (SolidBrush fb = new SolidBrush(UiStyle.Teal))
-                        g.FillPath(fb, fp);
+                    {
+                        using (SolidBrush fb = new SolidBrush(Color.FromArgb(47, 128, 201)))
+                            g.FillPath(fb, fp);
+                    }
                 }
             }
         }
+
+        private int SmoothingRadius() { return Math.Max(2, Height / 2); }
 
         private static GraphicsPath RoundRect(Rectangle r, int radius)
         {
@@ -522,6 +635,7 @@ namespace ArkLeft
         private Action<string> _clipboardSet = new Action<string>(
             delegate(string text) { Clipboard.SetText(text); });
         private System.Windows.Forms.Timer _copyFeedback;
+        private bool _reduceMotion;
 
         // Cached fonts are created once (per style) and reused across layouts to
         // avoid leaking GDI handles on repeated refreshes.
@@ -538,12 +652,12 @@ namespace ArkLeft
             set { _allowClose = value; }
         }
 
-        private static readonly Color CardBorder = UiStyle.Border;
-        private static readonly Color ContentBg = UiStyle.Canvas;
-        private static readonly Color TextDark = UiStyle.Navy;
-        private static readonly Color TextMuted = UiStyle.Muted;
-        internal static readonly Color WarningColor = Color.FromArgb(232, 89, 12);
-        private static readonly Color ErrorColor = Color.FromArgb(217, 72, 15);
+        private static readonly Color CardBorder = Color.FromArgb(158, 211, 226);
+        private static readonly Color ContentBg = Color.FromArgb(250, 251, 252);
+        private static readonly Color TextDark = Color.FromArgb(18, 61, 92);
+        private static readonly Color TextMuted = Color.FromArgb(73, 119, 139);
+        internal static readonly Color WarningColor = Color.FromArgb(184, 111, 25);
+        private static readonly Color ErrorColor = Color.FromArgb(180, 63, 71);
 
         public PopupForm()
         {
@@ -554,9 +668,8 @@ namespace ArkLeft
             BackColor = ContentBg;
             KeyPreview = true;
             AutoScaleMode = AutoScaleMode.None;
-            // UX022 v0.14: no outer chrome / border — the content fills the
-            // whole window so the card width equals the client width exactly.
-            Padding = new Padding(0);
+            // Reserve one physical pixel for the restrained outer frame.
+            Padding = new Padding(1);
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
             Text = "ark_left 方舟订阅额度";
 
@@ -585,6 +698,39 @@ namespace ArkLeft
 
             _hideTimer.Interval = HideController.HideDelayMs;
             _hideTimer.Tick += OnHideTimerTick;
+        }
+
+        public void SetReduceMotion(bool reduce)
+        {
+            _reduceMotion = reduce;
+            foreach (Control card in _content.Controls)
+                SetReduceMotion(card, reduce);
+        }
+
+        private void SetMotionAllowed(bool allowed)
+        {
+            foreach (Control card in _content.Controls)
+                SetMotionAllowed(card, allowed);
+        }
+
+        private static void SetMotionAllowed(Control parent, bool allowed)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                QuotaBar bar = child as QuotaBar;
+                if (bar != null) bar.SetMotionAllowed(allowed);
+                if (child.HasChildren) SetMotionAllowed(child, allowed);
+            }
+        }
+
+        private static void SetReduceMotion(Control parent, bool reduce)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                QuotaBar bar = child as QuotaBar;
+                if (bar != null) bar.ReduceMotion = reduce;
+                if (child.HasChildren) SetReduceMotion(child, reduce);
+            }
         }
 
         // UX022 v0.14: with the fixed header / footer removed, the details'
@@ -644,6 +790,14 @@ namespace ArkLeft
             Font f = new Font("Microsoft YaHei UI", pt, bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Point);
             _fontCache[key] = f;
             return f;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            if (ClientSize.Width < 2 || ClientSize.Height < 2) return;
+            using (Pen pen = new Pen(CardBorder))
+                e.Graphics.DrawRectangle(pen, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
         }
 
         protected override void Dispose(bool disposing)
@@ -733,6 +887,8 @@ namespace ArkLeft
                 _hide.State(true, Environment.TickCount); // clear any pending hide
                 _hideTimer.Stop();
                 if (!_clock.Enabled) _clock.Start();
+                SetMotionAllowed(true);
+                SetReduceMotion(_reduceMotion);
                 Activate();
                 BringToFront();
                 // UX022: focus the card (or the first focusable content) on
@@ -756,6 +912,7 @@ namespace ArkLeft
                 _hideTimer.Stop();
                 if (Visible) Hide();
                 if (_clock.Enabled) _clock.Stop();
+                SetMotionAllowed(false);
             }
             finally
             {
@@ -789,15 +946,15 @@ namespace ArkLeft
         {
             Rectangle wa = ActiveScreen().WorkingArea;
             int w = LayoutMath.ClampWidth(PanelPositioner.LogicalCardWidth, _scale, wa.Width);
-            int maxH = Math.Min(S(560), wa.Height - S(16));
+            int maxH = Math.Min(S(340), wa.Height - S(16));
             if (maxH < 1) maxH = 1;
 
             if (!fullPass && _scrolling)
             {
                 // Keep the scrollbar width; only re-measure for the hug.
-                ApplyCardWidths(Math.Max(1, w - ScrollbarWidth()));
+                ApplyCardWidths(Math.Max(1, w - 2 - ScrollbarWidth()));
                 int h2 = MeasureCardsHeight();
-                Size target2 = new Size(w, Math.Max(1, Math.Min(maxH, h2)));
+                Size target2 = new Size(w, Math.Max(3, Math.Min(maxH, h2 + 2)));
                 if (ClientSize != target2) { ClientSize = target2; if (Visible) _pendingReposition = true; }
                 ApplyWindowRegion();
                 return;
@@ -806,15 +963,15 @@ namespace ArkLeft
             // Pass 1: full width, no scrollbar.
             _scrolling = false;
             _content.AutoScroll = false;
-            ApplyCardWidths(w);
-            int h = MeasureCardsHeight();
+            ApplyCardWidths(Math.Max(1, w - 2));
+            int h = MeasureCardsHeight() + 2;
 
             // Pass 2 (bounded): real overflow — subtract the REAL scrollbar.
             if (h > maxH)
             {
                 _scrolling = true;
                 _content.AutoScroll = true;
-                ApplyCardWidths(Math.Max(1, w - ScrollbarWidth()));
+                ApplyCardWidths(Math.Max(1, w - 2 - ScrollbarWidth()));
                 h = maxH;
             }
 
@@ -839,7 +996,7 @@ namespace ArkLeft
                 for (int i = 0; i < count; i++)
                 {
                     Control c = _content.Controls[i];
-                    c.Margin = i < count - 1 ? new Padding(0, 0, 0, S(10)) : new Padding(0);
+                    c.Margin = i < count - 1 ? new Padding(0, 0, 0, S(3)) : new Padding(0);
                     c.Width = w;
                 }
             }
@@ -870,29 +1027,10 @@ namespace ArkLeft
             return total;
         }
 
-        // UX022: single card, no scroll — the window Region is the card's own
-        // rounded rectangle (same DPI-scaled radius), so the popup really looks
-        // like just that card. Multi-card / scrolling keeps a plain compact
-        // container without any outer frame or region.
+        // Keep the outer frame rectangular; individual cards retain their corners.
         private void ApplyWindowRegion()
         {
-            bool rounded = !_scrolling && _content.Controls.Count == 1;
-            if (!rounded)
-            {
-                if (Region != null) { Region.Dispose(); Region = null; }
-                return;
-            }
-            CardPanel card = _content.Controls[0] as CardPanel;
-            if (card == null || Width < 1 || Height < 1) return;
-            try
-            {
-                Region old = Region;
-                using (GraphicsPath path = UiStyle.RoundedRectangle(
-                    new Rectangle(0, 0, Width - 1, Height - 1), card.RegionRadius))
-                    Region = new Region(path);
-                if (old != null) old.Dispose();
-            }
-            catch (Exception) { }
+            if (Region != null) { Region.Dispose(); Region = null; }
         }
 
         // UX022: first selectable content — the card itself (CardPanel is
@@ -1370,11 +1508,12 @@ namespace ArkLeft
                     {
                         fields.Add(q.LabelDisplay); fields.Add(q.Error);
                         if (q.Error != null) continue;
-                        fields.Add(q.PercentKnown ? PercentFormat.RemainingForBar(q.RemainingPercent) : "剩余未知");
-                        fields.Add(q.PercentKnown ? q.RemainingPercent.ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "");
-                        fields.Add(q.AmountKnown ? DisplayNames.Number(q.RemainingAmount) : "");
+                        EffectivePeriodQuota effective = QuotaDisplay.Effective(p, q);
+                        fields.Add(effective.PercentKnown ? PercentFormat.RemainingForBar(effective.RemainingPercent) : "剩余未知");
+                        fields.Add(effective.PercentKnown ? effective.RemainingPercent.ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "");
+                        fields.Add(effective.AmountKnown ? DisplayNames.Number(effective.RemainingAmount) : "");
                         fields.Add(q.HasReset ? DisplayNames.FormatTime(q.ResetLocal) : "");
-                        fields.Add(q.UnknownNote != null && (q.Clamped || !q.PercentKnown) ? q.UnknownNote : null);
+                        fields.Add(q.UnknownNote != null && (q.Clamped || !effective.PercentKnown) ? q.UnknownNote : null);
                         fields.Add(q.UnknownNote != null && q.Clamped ? "warning" : "muted");
                     }
                     fields.Add("/product");
@@ -1742,13 +1881,9 @@ namespace ArkLeft
             if (string.IsNullOrEmpty(text)) return 0;
             try
             {
-                using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
-                using (StringFormat fmt = new StringFormat())
-                {
-                    fmt.Trimming = StringTrimming.Word;
-                    SizeF sz = g.MeasureString(text, font, Math.Max(1, width), fmt);
-                    return (int)Math.Ceiling(sz.Height) + 2;
-                }
+                return TextRenderer.MeasureText(text, font,
+                    new Size(Math.Max(1, width), Int32.MaxValue),
+                    TextFormatFlags.WordBreak).Height;
             }
             catch (Exception)
             {
@@ -1772,9 +1907,9 @@ namespace ArkLeft
         private Panel BuildProductCard(ProductQuota pq, RiskSummary risk)
         {
             CardPanel card = new CardPanel();
-            card.PadX = S(16);
-            StyleCard(card, S(12));
-            card.BackColor = Color.White;
+            card.PadX = S(10);
+            StyleCard(card, S(6));
+            card.BackColor = Color.FromArgb(250, 251, 252);
             // UX022: re-attach the compact status row after every reflow.
             card.AfterLayout = delegate { SyncStatusInPlace(); };
             card.Paint += delegate(object s, PaintEventArgs e) { DrawCardBorder(e, (Control)s); };
@@ -1782,17 +1917,23 @@ namespace ArkLeft
             card.Reflow = delegate(int innerW)
             {
                 ClearCard(card);
-                int pad = card.PadX;
-                int y = S(14);
+                List<CardPanel.PeriodSurface> periodSurfaces =
+                    new List<CardPanel.PeriodSurface>();
+                int surfacePad = S(10);
+                int surfaceWidth = card.ClientSize.Width - surfacePad * 2;
+                int pad = surfacePad + S(10);
+                innerW = Math.Max(1, surfaceWidth - S(10) - S(10));
+                int y = S(12);
 
                 Label title = new Label();
-                title.Font = F(10.5f, true);
+                title.Font = F(10f, true);
                 title.ForeColor = TextDark;
                 title.AutoSize = false;
                 title.Text = ProductTitle(pq);
-                title.SetBounds(pad, y, innerW, S(22));
+                int titleHeight = MeasureWrappedHeight(title.Text, title.Font, innerW);
+                title.SetBounds(pad, y, innerW, titleHeight);
                 card.Controls.Add(title);
-                y += S(26);
+                y += titleHeight + S(10);
 
                 if (!pq.SubscribedKnown)
                     y = AddLine(card, "订阅状态未知", TextMuted, pad, y, innerW);
@@ -1806,15 +1947,17 @@ namespace ArkLeft
 
                 for (int i = 0; i < pq.Periods.Count; i++)
                 {
-                    y = BuildPeriodRows(card, pq.Periods[i], pad, y, innerW, false);
-                    if (i < pq.Periods.Count - 1) y += S(4);
+                    y = BuildPeriodRows(card, pq, pq.Periods[i], pad, y, innerW,
+                        false, periodSurfaces);
+                    if (i < pq.Periods.Count - 1) y += S(8);
                 }
 
-                card.Height = y + S(12);
+                card.SetPeriodSurfaces(periodSurfaces);
+                card.Height = y + S(10);
                 card.Tag = pq.Periods.Count;
             };
 
-            card.Width = _cardWidth > 0 ? _cardWidth : S(300);
+            card.Width = _cardWidth > 0 ? _cardWidth : S(340);
             card.ForceLayout();
             // UX022: no tail gap — ApplyCardWidths puts the gap ONLY between cards.
             card.Margin = new Padding(0);
@@ -1824,36 +1967,52 @@ namespace ArkLeft
         private int AddLine(Control card, string text, Color color, int pad, int y, int innerW)
         {
             Label l = MakeLine(text, color, innerW);
-            l.SetBounds(pad, y, innerW, S(16));
+            int height = MeasureWrappedHeight(text, l.Font, innerW);
+            l.SetBounds(pad, y, innerW, height);
             card.Controls.Add(l);
-            return y + S(18);
+            return y + height;
         }
 
-        private int BuildPeriodRows(Control card, PeriodQuota p, int pad, int y, int innerW, bool isRisk)
+        private int BuildPeriodRows(Control card, ProductQuota product, PeriodQuota p,
+            int pad, int y, int innerW, bool isRisk,
+            List<CardPanel.PeriodSurface> periodSurfaces)
         {
+            EffectivePeriodQuota effective = QuotaDisplay.Effective(product, p);
+            int blockTop = y;
+            Color blockColor = PeriodSurfaceColor(p);
+            int contentY = y + S(8);
             Label name = new Label();
             name.Font = F(9f, false);
-            name.ForeColor = TextMuted;
+            name.ForeColor = TextDark;
             name.AutoSize = false;
             name.TextAlign = ContentAlignment.MiddleLeft;
             name.Text = p.LabelDisplay;
-            name.SetBounds(pad, y, innerW / 2, S(26));
+            name.BackColor = blockColor;
+            int nameWidth = S(48);
+            int pctWidth = S(60);
+            int gap = S(8);
+            int barWidth = innerW - nameWidth - pctWidth - gap * 2;
+            if (barWidth < S(20)) barWidth = S(20);
+            int rowHeight = Math.Max(S(24), MeasureWrappedHeight(name.Text, name.Font, nameWidth));
+            name.SetBounds(pad, contentY, nameWidth, rowHeight);
             card.Controls.Add(name);
 
             Label pct = new Label();
             pct.AutoSize = false;
             pct.TextAlign = ContentAlignment.MiddleRight;
+            pct.BackColor = blockColor;
             if (p.Error != null)
             {
                 pct.Font = F(10f, true);
                 pct.ForeColor = ErrorColor;
                 pct.Text = "获取失败";
             }
-            else if (p.PercentKnown)
+            else if (effective.PercentKnown)
             {
-                pct.Font = F(14f, true);
+                pct.Font = F(11f, true);
                 pct.ForeColor = TextDark;
-                pct.Text = PercentFormat.RemainingForBar(p.RemainingPercent);
+                pct.Text = PercentFormat.Remaining(effective.RemainingPercent);
+                _tip.SetToolTip(pct, PercentFormat.RemainingForBar(effective.RemainingPercent));
             }
             else
             {
@@ -1861,54 +2020,91 @@ namespace ArkLeft
                 pct.ForeColor = TextMuted;
                 pct.Text = "剩余未知";
             }
-            pct.SetBounds(pad + innerW / 2, y, innerW - innerW / 2, S(26));
+            rowHeight = Math.Max(rowHeight, MeasureWrappedHeight(pct.Text, pct.Font, pctWidth));
+            name.Height = rowHeight;
+            pct.SetBounds(pad + innerW - pctWidth, contentY, pctWidth, rowHeight);
             card.Controls.Add(pct);
-            y += S(28);
+
+            QuotaBar bar = new QuotaBar();
+            bar.Value = effective.PercentKnown ? effective.RemainingPercent : -1;
+            bar.ReduceMotion = _reduceMotion;
+            bar.SetBounds(pad + nameWidth + gap, contentY + (rowHeight - S(6)) / 2,
+                barWidth, S(6));
+            card.Controls.Add(bar);
+            y = contentY + rowHeight + S(4);
+
+            Label reset = new Label();
+            reset.Font = F(8.5f, false);
+            reset.ForeColor = TextMuted;
+            reset.AutoSize = false;
+            reset.TextAlign = ContentAlignment.MiddleLeft;
+            reset.Text = p.HasReset ? DisplayNames.FormatTime(p.ResetLocal) : "--";
+            reset.BackColor = blockColor;
+            int dateWidth = TextRenderer.MeasureText(reset.Text, reset.Font).Width + S(2);
+            int minAmountWidth = S(1);
+            int availableWidth = Math.Max(2, innerW);
+            int dateColumn = Math.Min(Math.Max(S(1), availableWidth - minAmountWidth),
+                Math.Max(availableWidth / 2, dateWidth));
+            int amountStart = pad + dateColumn;
+            reset.SetBounds(pad, y, dateColumn, S(20));
+            card.Controls.Add(reset);
+
+            Label amount = new Label();
+            amount.Font = F(8.5f, false);
+            amount.ForeColor = TextMuted;
+            amount.AutoSize = false;
+            amount.TextAlign = ContentAlignment.MiddleRight;
+            string fullAmount = effective.AmountKnown
+                ? DisplayNames.Number(effective.RemainingAmount) + " 额度" : "--";
+            int amountWidth = Math.Max(1, availableWidth - dateColumn);
+            amount.Text = FitAmountText(fullAmount, effective.AmountKnown
+                ? effective.RemainingAmount : double.NaN, amountWidth, amount.Font);
+            amount.BackColor = blockColor;
+            if (amount.Text != fullAmount)
+                _tip.SetToolTip(amount, fullAmount);
+            amount.SetBounds(amountStart, y, amountWidth, S(20));
+            card.Controls.Add(amount);
+            y += S(20);
 
             if (p.Error != null)
             {
-                Label e = MakeLine(p.Error, ErrorColor, innerW);
-                e.SetBounds(pad, y, innerW, S(16));
-                card.Controls.Add(e);
-                return y + S(18);
-            }
-
-            QuotaBar bar = new QuotaBar();
-            bar.Value = p.PercentKnown ? p.RemainingPercent : -1;
-            bar.SetBounds(pad, y, innerW, S(9));
-            card.Controls.Add(bar);
-            y += S(9) + S(6);
-
-            if (p.AmountKnown)
-            {
-                y = AddLine(card, "剩余 " + DisplayNames.Number(p.RemainingAmount) + " 额度",
-                    TextMuted, pad, y, innerW);
-            }
-
-            if (p.HasReset)
-            {
-                Label r = MakeLine("重置 " + DisplayNames.FormatTime(p.ResetLocal), TextMuted, innerW);
-                r.SetBounds(pad, y, innerW, S(16));
-                card.Controls.Add(r);
-                y += S(17);
+                int first = card.Controls.Count;
+                y = AddLine(card, p.Error, ErrorColor, pad, y + S(2), innerW);
+                card.Controls[first].BackColor = blockColor;
             }
 
             if (p.Clamped && p.UnknownNote != null)
             {
-                Label n = MakeLine(p.UnknownNote, WarningColor, innerW);
-                n.SetBounds(pad, y, innerW, S(16));
-                card.Controls.Add(n);
-                y += S(17);
+                int first = card.Controls.Count;
+                y = AddLine(card, p.UnknownNote, WarningColor, pad, y, innerW);
+                card.Controls[first].BackColor = blockColor;
             }
-            else if (!p.PercentKnown && p.UnknownNote != null)
+            else if (!effective.PercentKnown && p.UnknownNote != null)
             {
-                Label n = MakeLine(p.UnknownNote, TextMuted, innerW);
-                n.SetBounds(pad, y, innerW, S(16));
-                card.Controls.Add(n);
-                y += S(17);
+                int first = card.Controls.Count;
+                y = AddLine(card, p.UnknownNote, TextMuted, pad, y, innerW);
+                card.Controls[first].BackColor = blockColor;
             }
 
-            return y;
+            int blockBottom = y + S(8);
+            periodSurfaces.Add(new CardPanel.PeriodSurface(
+                new Rectangle(pad - S(10), blockTop, innerW + S(10) * 2,
+                    blockBottom - blockTop), blockColor, S(8)));
+            return blockBottom;
+        }
+
+        private Color PeriodSurfaceColor(PeriodQuota p)
+        {
+            return Color.FromArgb(240, 244, 248);
+        }
+
+        private static string FitAmountText(string full, double value, int width, Font font)
+        {
+            if (TextRenderer.MeasureText(full, font).Width <= Math.Max(1, width - 2)) return full;
+            if (double.IsNaN(value) || double.IsInfinity(value)) return full;
+            string compact = value.ToString("0.###E+0",
+                System.Globalization.CultureInfo.InvariantCulture) + " 额度";
+            return compact;
         }
 
         private static double ClampPercent(double v)
@@ -1935,7 +2131,7 @@ namespace ArkLeft
             // drawn border and the region agree at every DPI (a fixed 12px border
             // on a scaled region left a mismatched corner).
             int radius = card is CardPanel ? ((CardPanel)card).RegionRadius : S(12);
-            using (Pen pen = new Pen(CardBorder))
+            using (Pen pen = new Pen(Color.FromArgb(145, 203, 220)))
             using (GraphicsPath path = UiStyle.RoundedRectangle(
                 new Rectangle(0, 0, card.Width - 1, card.Height - 1), radius))
                 e.Graphics.DrawPath(pen, path);
@@ -2257,7 +2453,13 @@ namespace ArkLeft
                     prefsSaveOverride != null ? prefsSaveOverride
                         : new Func<FloatingPreferences, bool>(
                             delegate(FloatingPreferences p) { return true; }));
+            _form.SetReduceMotion(_floating.ReduceMotion);
             _floating.DetailsRequested += delegate { ShowDetails(); };
+            _floating.DragStarted += delegate
+            {
+                _form.HidePanel();
+                if (_menu != null) _menu.Close();
+            };
             _floating.SettingsRequested += delegate { OpenSettings(); };
             _floating.ExitRequested += delegate { ExitApp(); };
             // v0.8 UX016 fix: bound right after _floating exists, before any
@@ -2266,7 +2468,11 @@ namespace ArkLeft
             _floating.LockSaveFailed += delegate { OnLockSaveFailed(); };
             // v0.9 UX017: same binding discipline as LockSaveFailed - bound
             // right after _floating exists, handler is _disposed / _notify safe.
-            _floating.ReduceMotionChanged += delegate { SyncLockChecked(); };
+            _floating.ReduceMotionChanged += delegate
+            {
+                _form.SetReduceMotion(_floating.ReduceMotion);
+                SyncLockChecked();
+            };
             _floating.MotionSaveFailed += delegate { OnMotionSaveFailed(); };
             _controller = new SnapshotController(_form.Model, query ?? _cli.QueryDetailedAsync,
                 delegate(PanelView v)
@@ -2309,40 +2515,31 @@ namespace ArkLeft
             // tests so the real menu / settings path is exercised; only the
             // NotifyIcon / tray registration / IPC stay production-only.
             _menu = new ContextMenuStrip();
-            // v0.15 UX023: top level is only [设置(子菜单), 退出]; the left
-            // click keeps opening the details and the shared menu never opens
-            // the settings modal. The 设置 submenu expands natively to the
-            // side and holds 悬浮内容 plus the existing toggles.
-            _menuSettings = new ToolStripMenuItem("设置");
-            _menuContent = new ToolStripMenuItem("悬浮内容");
+            // The settings submenu exposes only content selection. Preference
+            // handlers remain available to existing callers without menu entries.
+            _menuSettings = new ToggleMenuItem("设置");
+            _menuContent = new ToggleMenuItem("悬浮内容");
             _menuSettings.DropDownItems.Add(_menuContent);
-            _menuSettings.DropDownItems.Add(new ToolStripSeparator());
             // v0.8 UX016: checkable "锁定位置" shared with the circle menu —
             // same state / handler inside FloatingQuotaForm; the check is
             // re-synced from the real state on change and on submenu opening.
             _menuLock = new ToolStripMenuItem("锁定位置");
             _menuLock.CheckOnClick = false; // state is owned by FloatingQuotaForm
             _menuLock.Click += delegate { _floating.TogglePositionLocked(); };
-            _menuSettings.DropDownItems.Add(_menuLock);
             // v0.9 UX017: checkable "减少动画" shared with the circle menu.
             _menuMotion = new ToolStripMenuItem("减少动画");
             _menuMotion.CheckOnClick = false; // state is owned by FloatingQuotaForm
             _menuMotion.Click += delegate { _floating.ToggleReduceMotion(); };
-            _menuSettings.DropDownItems.Add(_menuMotion);
             // v0.12 UX020: "悬浮窗归位" (one shared item for the tray and the
             // circle right-click menu). Explicit re-home: zero query, nothing
             // persisted, the lock never blocks it.
             _menuHome = new ToolStripMenuItem("悬浮窗归位", null,
                 delegate { RepositionFloatingHome(); });
-            _menuSettings.DropDownItems.Add(_menuHome);
             _menuToggle = new ToolStripMenuItem("隐藏悬浮窗", null, delegate { ToggleFloating(); });
-            _menuSettings.DropDownItems.Add(_menuToggle);
             // Explicit native side expansion on click (never a modal).
             _menuSettings.Click += delegate
             {
                 _menuSettingsDropDownRequested = true;
-                try { if (_menu != null && _menu.Visible) _menuSettings.ShowDropDown(); }
-                catch (Exception) { }
             };
             // Rebuild 悬浮内容 from the CURRENT snapshot on every open; a
             // candidate that changes while open is re-validated on click.
@@ -2353,9 +2550,21 @@ namespace ArkLeft
                 UpdateToggleText();
             };
             _menu.Items.Add(_menuSettings);
-            _menu.Items.Add("退出", null, delegate { ExitApp(); });
+            _menu.Items.Add(_menuToggle);
+            _menu.Items.Add("退出 ark_left", null, delegate { ExitApp(); });
             UiStyle.StyleMenu(_menu);
             _floating.SetContextMenuStrip(_menu);
+            UiStyle.AttachFloatingMenu(_menu, _menuSettings, _menuContent,
+                _floating.CircleSurface);
+            _menu.Opening += delegate
+            {
+                _form.HidePanel();
+                _form.SetMenuOpen(true);
+                _floating.PopulateContentMenu(_menuContent);
+                UpdateToggleText();
+                SyncLockChecked();
+            };
+            _menu.Closed += delegate { _form.SetMenuOpen(false); };
             _floating.PositionLockChanged += delegate { SyncLockChecked(); };
             // A toggle inside the open 设置 submenu must re-sync both checks
             // and the 悬浮内容 list (the opening hook does not fire again).
@@ -2385,13 +2594,6 @@ namespace ArkLeft
             _notify.MouseDown += OnTrayMouseDown;
             _notify.MouseClick += OnTrayClick;
 
-            _menu.Opening += delegate
-            {
-                _form.SetMenuOpen(true);
-                UpdateToggleText();
-                SyncLockChecked();
-            };
-            _menu.Closed += delegate { _form.SetMenuOpen(false); };
 
             // First launch shows the circle (marker still decides silent start).
         }
@@ -2503,6 +2705,7 @@ namespace ArkLeft
         // show the details WITHOUT any query. Layout never covers the circle.
         private void ShowDetails()
         {
+            if (_menu != null) _menu.Close();
             if (_form.Visible) return;
             // Ensure the circle is initialised/positioned first (a silent marker
             // start has never opened it), so its screen is real. Then let the
@@ -2942,6 +3145,9 @@ namespace ArkLeft
                 try { if (_notify != null) { _notify.Visible = false; _notify.Dispose(); } } catch (Exception) { }
                 try { if (_floating != null) _floating.Dispose(); } catch (Exception) { }
                 try { if (_menu != null) _menu.Dispose(); } catch (Exception) { }
+                if (_menuLock != null) _menuLock.Dispose();
+                if (_menuMotion != null) _menuMotion.Dispose();
+                if (_menuHome != null) _menuHome.Dispose();
                 try { if (_trayIcon != null) _trayIcon.Dispose(); } catch (Exception) { }
                 try { if (_cli != null) _cli.Dispose(); } catch (Exception) { }
                 try { if (_form != null) _form.Dispose(); } catch (Exception) { }
@@ -2997,9 +3203,8 @@ namespace ArkLeft
                     f.ForceLoading();
                     failures += AssertInside(f, wa, "loading");
                     failures += AssertCardFit(f, "loading");
-                    // UX022: a single message card — the window is that card,
-                    // rounded like it, with the update-time tooltip attached.
-                    if (f.Region == null)
+                    // The message card sits inside the rectangular outer frame.
+                    if (f.Region != null)
                         failures++;
                     if (f.ContentCardCount != 1 || f.CopyMenuItemForTest.Enabled)
                         failures++;
@@ -3055,7 +3260,7 @@ namespace ArkLeft
                     f.ForceError(QuotaStatus.NotLoggedIn, "当前未登录方舟账号。");
                     failures += AssertInside(f, wa, "empty");
                     failures += AssertCardFit(f, "empty");
-                    if (f.Region == null)
+                    if (f.Region != null)
                         failures++;
                     TrySavePreview(f, "preview-empty.png");
 
@@ -3361,11 +3566,11 @@ namespace ArkLeft
                     Application.DoEvents();
                     if (!floating.CircleVisible) { bad++; Console.Error.WriteLine("floating: not visible"); }
                     FloatingCircleControl circle = floating.CircleForTest;
-                    if (circle.PercentTextForTest != "75%")
+                    if (circle.PercentTextForTest != "10%")
                     {
                         bad++;
                         Console.Error.WriteLine("floating.percent: got " + circle.PercentTextForTest
-                            + " want 75%");
+                            + " want 10%");
                     }
                     if (!circle.PercentKnownForTest)
                     {
@@ -3407,7 +3612,7 @@ namespace ArkLeft
                         bad++;
                         Console.Error.WriteLine("floating.reduceMotion: wave still running");
                     }
-                    if (circle.PercentTextForTest != "75%")
+                    if (circle.PercentTextForTest != "10%")
                     {
                         bad++;
                         Console.Error.WriteLine("floating.reduceMotion: percent changed");
@@ -3553,9 +3758,9 @@ namespace ArkLeft
                             // focused/hover ring (bright teal) covered both
                             // sample points. Compare the SAME bottom pixel
                             // against the 0% reference instead: the ring is
-                            // identical in both snapshots, so a clear G-channel
-                            // rise is real water (measured ~65, threshold 20).
-                            if (!(bot1.G > bot0.G + 20))
+                            // identical in both snapshots, so a red-channel
+                            // drop from white identifies the sky-blue water.
+                            if (!(bot0.R > bot1.R + 20))
                             {
                                 bad++;
                                 Console.Error.WriteLine("floating scale 1pct no water vs 0pct reference: 1pct="

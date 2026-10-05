@@ -473,10 +473,11 @@ namespace ArkLeft
                 for (int j = 0; j < pq.Periods.Count; j++)
                 {
                     PeriodQuota p = pq.Periods[j];
-                    if (p.Error != null || !p.PercentKnown) continue; // ignore unknown/error
-                    if (p.RemainingPercent < lowest)
+                    EffectivePeriodQuota effective = QuotaDisplay.Effective(pq, p);
+                    if (p.Error != null || !effective.PercentKnown) continue; // ignore unknown/error
+                    if (effective.RemainingPercent < lowest)
                     {
-                        lowest = p.RemainingPercent;
+                        lowest = effective.RemainingPercent;
                         rs.PeriodName = p.LabelDisplay;
                     }
                 }
