@@ -286,11 +286,8 @@ namespace ArkLeft
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.Clear(Color.Transparent);
 
-                Color teal = Color.FromArgb(18, 184, 134);
-                Color tealDark = Color.FromArgb(12, 145, 105);
-
                 Rectangle r = new Rectangle(1, 1, size - 2, size - 2);
-                using (LinearGradientBrush bg = new LinearGradientBrush(r, teal, tealDark, 55f))
+                using (SolidBrush bg = new SolidBrush(UiStyle.Primary))
                 using (GraphicsPath path = RoundRect(r, (int)(size * 0.28)))
                 {
                     g.FillPath(bg, path);
@@ -309,7 +306,7 @@ namespace ArkLeft
                                    cx - bodyW * 0.55f, top + bodyH * 1.05f);
                     drop.AddArc(cx - bodyW * 0.55f, top + bodyH * 0.62f, bodyW * 1.10f, bodyH * 0.90f, 150f, 240f);
                     drop.CloseFigure();
-                    using (SolidBrush white = new SolidBrush(Color.FromArgb(245, 255, 252)))
+                    using (SolidBrush white = new SolidBrush(Color.White))
                         g.FillPath(white, drop);
                 }
             }
@@ -427,7 +424,7 @@ namespace ArkLeft
             int radius = Math.Max(2, (Height - 1) / 2);
             Rectangle track = new Rectangle(0, 0, Width - 1, Height - 1);
             using (GraphicsPath tp = RoundRect(track, radius))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(226, 232, 240)))
+                using (SolidBrush tb = new SolidBrush(UiStyle.Track))
                 g.FillPath(tb, tp);
 
             if (_value >= 0)
@@ -449,7 +446,7 @@ namespace ArkLeft
                     if (fr < 1) fr = 1;
                     using (GraphicsPath fp = RoundRect(fill, fr))
                     {
-                        using (SolidBrush fb = new SolidBrush(Color.FromArgb(47, 128, 201)))
+                        using (SolidBrush fb = new SolidBrush(UiStyle.Sky))
                             g.FillPath(fb, fp);
                     }
                 }
@@ -652,12 +649,12 @@ namespace ArkLeft
             set { _allowClose = value; }
         }
 
-        private static readonly Color CardBorder = Color.FromArgb(158, 211, 226);
-        private static readonly Color ContentBg = Color.FromArgb(250, 251, 252);
-        private static readonly Color TextDark = Color.FromArgb(18, 61, 92);
-        private static readonly Color TextMuted = Color.FromArgb(73, 119, 139);
-        internal static readonly Color WarningColor = Color.FromArgb(184, 111, 25);
-        private static readonly Color ErrorColor = Color.FromArgb(180, 63, 71);
+        private static readonly Color CardBorder = UiStyle.Border;
+        private static readonly Color ContentBg = UiStyle.Canvas;
+        private static readonly Color TextDark = UiStyle.Navy;
+        private static readonly Color TextMuted = UiStyle.Muted;
+        internal static readonly Color WarningColor = UiStyle.Warning;
+        private static readonly Color ErrorColor = UiStyle.Error;
 
         public PopupForm()
         {
@@ -1563,8 +1560,8 @@ namespace ArkLeft
         {
             CardPanel card = new CardPanel();
             card.PadX = S(16);
-            StyleCard(card, S(12));
-            card.BackColor = Color.FromArgb(240, 248, 244);
+            StyleCard(card, S(8));
+            card.BackColor = Color.White;
             // UX022: re-attach the compact status row after every reflow.
             card.AfterLayout = delegate { SyncStatusInPlace(); };
             card.Paint += delegate(object s, PaintEventArgs e) { DrawCardBorder(e, (Control)s); };
@@ -1573,20 +1570,22 @@ namespace ArkLeft
                 ClearCard(card);
                 Label lbl = new Label();
                 lbl.Font = F(8.5f, false);
-                lbl.ForeColor = Color.FromArgb(20, 90, 70);
+                lbl.ForeColor = TextDark;
                 lbl.AutoSize = false;
                 lbl.Text = text;
                 int textH = MeasureWrappedHeight(text, lbl.Font, innerW);
                 lbl.SetBounds(card.PadX, S(8), innerW, textH);
                 card.Controls.Add(lbl);
-                Button close = new Button();
+                Button close = new ModernButton();
                 close.Text = "知道了";
                 close.AccessibleName = "关闭首次运行提示";
                 close.TabStop = true;
                 close.FlatStyle = FlatStyle.Flat;
                 close.FlatAppearance.BorderSize = 0;
-                close.BackColor = Color.FromArgb(240, 248, 244);
-                close.ForeColor = Color.FromArgb(20, 90, 70);
+                close.BackColor = Color.White;
+                close.ForeColor = UiStyle.Teal;
+                close.FlatAppearance.MouseOverBackColor = UiStyle.TealLight;
+                close.FlatAppearance.MouseDownBackColor = UiStyle.Selected;
                 close.Font = F(8.25f, false);
                 close.SetBounds(card.PadX, S(10) + textH, S(64), S(24));
                 close.Click += delegate { DismissIntro(); };
@@ -1609,7 +1608,7 @@ namespace ArkLeft
         {
             CardPanel card = new CardPanel();
             card.PadX = S(12);
-            StyleCard(card, S(12));
+            StyleCard(card, S(8));
             card.BackColor = Color.White;
             // UX022: re-attach the compact status row after every reflow.
             card.AfterLayout = delegate { SyncStatusInPlace(); };
@@ -1617,14 +1616,12 @@ namespace ArkLeft
             card.Reflow = delegate(int innerW)
             {
                 ClearCard(card);
-                Button b = new Button();
+                Button b = new ModernButton();
                 b.Text = text;
                 b.AccessibleName = text;
                 b.TabStop = true;
-                b.FlatStyle = FlatStyle.Flat;
-                b.BackColor = Color.FromArgb(238, 245, 242);
-                b.ForeColor = Color.FromArgb(20, 90, 70);
-                b.Cursor = Cursors.Hand;
+                UiStyle.StyleButton(b, false);
+                b.MinimumSize = Size.Empty;
                 b.Font = F(9f, false);
                 b.SetBounds(card.PadX, S(8), innerW, S(30));
                 b.Click += onClick;
@@ -1908,8 +1905,8 @@ namespace ArkLeft
         {
             CardPanel card = new CardPanel();
             card.PadX = S(10);
-            StyleCard(card, S(6));
-            card.BackColor = Color.FromArgb(250, 251, 252);
+            StyleCard(card, S(8));
+            card.BackColor = Color.White;
             // UX022: re-attach the compact status row after every reflow.
             card.AfterLayout = delegate { SyncStatusInPlace(); };
             card.Paint += delegate(object s, PaintEventArgs e) { DrawCardBorder(e, (Control)s); };
@@ -1982,7 +1979,7 @@ namespace ArkLeft
             Color blockColor = PeriodSurfaceColor(p);
             int contentY = y + S(8);
             Label name = new Label();
-            name.Font = F(9f, false);
+            name.Font = F(9f, true);
             name.ForeColor = TextDark;
             name.AutoSize = false;
             name.TextAlign = ContentAlignment.MiddleLeft;
@@ -2095,15 +2092,16 @@ namespace ArkLeft
 
         private Color PeriodSurfaceColor(PeriodQuota p)
         {
-            return Color.FromArgb(240, 244, 248);
+            return UiStyle.Secondary;
         }
 
-        private static string FitAmountText(string full, double value, int width, Font font)
+        internal static string FitAmountText(string full, double value, int width, Font font,
+            string unit = "额度")
         {
             if (TextRenderer.MeasureText(full, font).Width <= Math.Max(1, width - 2)) return full;
             if (double.IsNaN(value) || double.IsInfinity(value)) return full;
             string compact = value.ToString("0.###E+0",
-                System.Globalization.CultureInfo.InvariantCulture) + " 额度";
+                System.Globalization.CultureInfo.InvariantCulture) + " " + unit;
             return compact;
         }
 
@@ -2131,7 +2129,7 @@ namespace ArkLeft
             // drawn border and the region agree at every DPI (a fixed 12px border
             // on a scaled region left a mismatched corner).
             int radius = card is CardPanel ? ((CardPanel)card).RegionRadius : S(12);
-            using (Pen pen = new Pen(Color.FromArgb(145, 203, 220)))
+            using (Pen pen = new Pen(UiStyle.Border))
             using (GraphicsPath path = UiStyle.RoundedRectangle(
                 new Rectangle(0, 0, card.Width - 1, card.Height - 1), radius))
                 e.Graphics.DrawPath(pen, path);
@@ -3371,6 +3369,10 @@ namespace ArkLeft
 
                     f.ForceRender(SyntheticSample.Build());
                     f.SetIntro(null);
+                    QuotaSnapshot modern = SyntheticSample.BuildLarge();
+                    modern.Products.RemoveRange(1, modern.Products.Count - 1);
+                    f.ForceRender(modern);
+                    TrySavePreview(f, "preview-detail.png");
 
                     // v0.4: production floating circle + settings dialog. Uses
                     // synthetic data only; writes no preference file.
@@ -3582,17 +3584,15 @@ namespace ArkLeft
                         bad++;
                         Console.Error.WriteLine("floating.wave: expected running");
                     }
-                    if (!circle.CaptionForTest.Contains("5 小时"))
+                    if (!circle.TooltipForTest.Contains("5 小时"))
                     {
                         bad++;
-                        Console.Error.WriteLine("floating.caption: " + circle.CaptionForTest);
+                        Console.Error.WriteLine("floating.tooltip: " + circle.TooltipForTest);
                     }
-                    if (circle.ProductCaptionForTest.Length == 0
-                        || circle.PeriodCaptionForTest != "5 小时")
+                    if (circle.AmountTextForTest != "100 AFP")
                     {
                         bad++;
-                        Console.Error.WriteLine("floating.captionLines: product="
-                            + circle.ProductCaptionForTest + " period=" + circle.PeriodCaptionForTest);
+                        Console.Error.WriteLine("floating.amount: " + circle.AmountTextForTest);
                     }
                     if (!CircleInside(floating.CircleForTest.Bounds, wa))
                     {
@@ -3634,6 +3634,20 @@ namespace ArkLeft
                     // no-water pixels rather than trusting the text alone.
                     bad += SmokeCircleEndpoints(floating);
                     bad += SmokeCircleScale();
+                    ContextMenuStrip menu = circle.ContextMenuStrip;
+                    UiStyle.StyleMenu(menu);
+                    menu.Show(new Point(wa.Left + 24, wa.Top + 24));
+                    Application.DoEvents();
+                    TrySaveControlPreview(menu, "preview-rightmenu.png");
+                    ToolStripMenuItem settingsItem = (ToolStripMenuItem)menu.Items[0];
+                    settingsItem.ShowDropDown();
+                    Application.DoEvents();
+                    TrySaveControlPreview(settingsItem.DropDown, "preview-menu-settings.png");
+                    ToolStripMenuItem contentItem = (ToolStripMenuItem)settingsItem.DropDownItems[0];
+                    contentItem.ShowDropDown();
+                    Application.DoEvents();
+                    TrySaveControlPreview(contentItem.DropDown, "preview-menu-content.png");
+                    menu.Close();
 
                     // Settings dialog (production Drawing) with an injected
                     // no-op save; never touches the real preference file.
@@ -3674,6 +3688,17 @@ namespace ArkLeft
                 Rectangle wa = Screen.PrimaryScreen.WorkingArea;
                 FloatingCircleControl circle = floating.CircleForTest;
                 circle.ShowAt(wa, 1.0);
+
+                foreach (int percent in new int[] { 50, 97 })
+                {
+                    circle.SetDisplay(EndpointDisplay(percent, true, percent + "%"));
+                    Application.DoEvents();
+                    using (Bitmap middle = SnapshotControl(circle))
+                    {
+                        if (!IsWater(middle.GetPixel(middle.Width / 4, (int)(middle.Height * 0.85)))) bad++;
+                        TrySaveBitmap(middle, "preview-floating-" + percent + ".png", circle.Region);
+                    }
+                }
 
                 circle.SetDisplay(EndpointDisplay(100, true, "100%"));
                 Application.DoEvents();
@@ -3806,8 +3831,9 @@ namespace ArkLeft
             d.PercentKnown = known;
             d.Percent = percent;
             d.PercentText = text;
-            d.ProductCaption = "Agent Plan";
-            d.PeriodCaption = "5 小时";
+            d.AmountKnown = known;
+            d.RemainingAmount = percent * 100;
+            d.Tooltip = "Agent Plan · 5 小时";
             return d;
         }
 

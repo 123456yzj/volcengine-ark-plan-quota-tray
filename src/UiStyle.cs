@@ -54,12 +54,33 @@ namespace ArkLeft
 
     internal static class UiStyle
     {
-        public static readonly Color Navy = Color.FromArgb(25, 49, 70);
-        public static readonly Color Teal = Color.FromArgb(12, 145, 117);
-        public static readonly Color TealLight = Color.FromArgb(226, 244, 238);
-        public static readonly Color Canvas = Color.FromArgb(244, 247, 249);
-        public static readonly Color Border = Color.FromArgb(222, 230, 234);
-        public static readonly Color Muted = Color.FromArgb(101, 117, 128);
+        public static readonly Color Navy = Color.FromArgb(36, 65, 92);
+        public static readonly Color Primary = Color.FromArgb(58, 131, 247);
+        public static readonly Color Teal = Primary;
+        public static readonly Color TealLight = Color.FromArgb(234, 242, 255);
+        public static readonly Color Canvas = Color.FromArgb(248, 251, 255);
+        public static readonly Color Border = Color.FromArgb(216, 227, 240);
+        public static readonly Color StrongBorder = Color.FromArgb(196, 212, 232);
+        public static readonly Color Divider = Color.FromArgb(229, 238, 245);
+        public static readonly Color Muted = Color.FromArgb(108, 129, 149);
+        public static readonly Color Weak = Color.FromArgb(145, 162, 178);
+        public static readonly Color Secondary = Color.FromArgb(242, 247, 255);
+        public static readonly Color Selected = Color.FromArgb(216, 232, 255);
+        public static readonly Color Track = Color.FromArgb(220, 233, 247);
+        public static readonly Color Sky = Primary;
+        public static readonly Color PrimaryButton = Primary;
+        public static readonly Color PrimaryHover = Color.FromArgb(47, 114, 232);
+        public static readonly Color PrimaryPressed = Color.FromArgb(40, 100, 211);
+        public static readonly Color Water = Color.FromArgb(90, 154, 248);
+        public static readonly Color SecondaryBlue = Color.FromArgb(109, 166, 250);
+        public static readonly Color HighlightBlue = Color.FromArgb(187, 215, 253);
+        public static readonly Color CircleRing = Color.FromArgb(175, 199, 226);
+        public static readonly Color CircleHover = Color.FromArgb(108, 159, 226);
+        public static readonly Color CircleNumber = Color.FromArgb(24, 62, 99);
+        public static readonly Color CircleCaption = Color.FromArgb(69, 98, 122);
+        public static readonly Color Success = Color.FromArgb(34, 197, 94);
+        public static readonly Color Warning = Color.FromArgb(246, 166, 35);
+        public static readonly Color Error = Color.FromArgb(224, 91, 101);
 
         public static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
         {
@@ -82,28 +103,48 @@ namespace ArkLeft
         {
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderSize = 1;
-            button.FlatAppearance.BorderColor = primary ? Teal : Border;
+            button.FlatAppearance.BorderColor = primary ? PrimaryButton : Border;
             button.FlatAppearance.MouseOverBackColor = primary
-                ? Color.FromArgb(10, 128, 103) : Color.FromArgb(235, 241, 243);
+                ? PrimaryHover : Secondary;
             button.FlatAppearance.MouseDownBackColor = primary
-                ? Color.FromArgb(8, 111, 90) : Color.FromArgb(225, 233, 236);
-            button.BackColor = primary ? Teal : Color.White;
+                ? PrimaryPressed : Selected;
+            button.BackColor = primary ? PrimaryButton : Color.White;
             button.ForeColor = primary ? Color.White : Navy;
             button.Cursor = Cursors.Hand;
             button.MinimumSize = new Size(0, 32);
+            ModernButton modern = button as ModernButton;
+            if (modern != null) modern.Primary = primary;
         }
 
         public static void StyleMenu(ContextMenuStrip menu)
         {
+            menu.ShowImageMargin = false;
+            StyleMenuLevel(menu);
+        }
+
+        internal static void StyleMenuLevel(ToolStripDropDown menu)
+        {
+            ContextMenuStrip root = menu as ContextMenuStrip;
+            if (root != null) root.ShowImageMargin = false;
             menu.BackColor = Color.White;
             menu.ForeColor = Navy;
             menu.Padding = new Padding(4);
-            menu.Renderer = new ToolStripProfessionalRenderer(new MenuColors());
-            menu.ShowImageMargin = false;
+            menu.Renderer = new ModernMenuRenderer();
             foreach (ToolStripItem item in menu.Items)
             {
                 item.Padding = new Padding(8, 5, 8, 5);
+                item.ForeColor = Navy;
+                ToolStripMenuItem child = item as ToolStripMenuItem;
+                if (child != null && child.HasDropDownItems) StyleMenuLevel(child.DropDown);
             }
+        }
+
+        internal static void StyleMenuBranch(ToolStripMenuItem item)
+        {
+            ToolStripDropDown root = item.DropDown;
+            while (root.OwnerItem != null && root.OwnerItem.Owner is ToolStripDropDown)
+                root = (ToolStripDropDown)root.OwnerItem.Owner;
+            StyleMenuLevel(root);
         }
 
         public static void AttachFloatingMenu(ContextMenuStrip menu,
@@ -242,9 +283,145 @@ namespace ArkLeft
             public override Color ToolStripDropDownBackground { get { return Color.White; } }
             public override Color MenuBorder { get { return Border; } }
             public override Color MenuItemSelected { get { return TealLight; } }
-            public override Color MenuItemBorder { get { return Color.FromArgb(204, 229, 220); } }
-            public override Color SeparatorDark { get { return Border; } }
+            public override Color MenuItemBorder { get { return TealLight; } }
+            public override Color MenuItemSelectedGradientBegin { get { return TealLight; } }
+            public override Color MenuItemSelectedGradientEnd { get { return TealLight; } }
+            public override Color MenuItemPressedGradientBegin { get { return Selected; } }
+            public override Color MenuItemPressedGradientMiddle { get { return Selected; } }
+            public override Color MenuItemPressedGradientEnd { get { return Selected; } }
+            public override Color CheckBackground { get { return Selected; } }
+            public override Color CheckSelectedBackground { get { return Selected; } }
+            public override Color CheckPressedBackground { get { return Selected; } }
+            public override Color ButtonCheckedGradientBegin { get { return TealLight; } }
+            public override Color ButtonCheckedGradientMiddle { get { return TealLight; } }
+            public override Color ButtonCheckedGradientEnd { get { return TealLight; } }
+            public override Color SeparatorDark { get { return Divider; } }
             public override Color SeparatorLight { get { return Color.White; } }
+        }
+
+        private sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
+        {
+            internal ModernMenuRenderer() : base(new MenuColors()) { RoundedEdges = false; }
+            protected override void OnRenderImageMargin(ToolStripRenderEventArgs e) { }
+            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+            {
+                ToolStripMenuItem item = e.Item as ToolStripMenuItem;
+                Color fill = e.Item.Pressed || (item != null && item.Checked)
+                    ? Selected : e.Item.Selected ? TealLight : Color.White;
+                using (SolidBrush brush = new SolidBrush(fill))
+                    e.Graphics.FillRectangle(brush, new Rectangle(Point.Empty, e.Item.Size));
+            }
+            protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+            {
+                e.ArrowColor = e.Item.Enabled ? Navy : Weak;
+                base.OnRenderArrow(e);
+            }
+            protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+            {
+                Rectangle r = e.ImageRectangle;
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (Pen pen = new Pen(e.Item.Enabled ? Primary : Weak, 1.8f))
+                    e.Graphics.DrawLines(pen, new PointF[] {
+                        new PointF(r.Left + r.Width * 0.2f, r.Top + r.Height * 0.5f),
+                        new PointF(r.Left + r.Width * 0.43f, r.Top + r.Height * 0.72f),
+                        new PointF(r.Left + r.Width * 0.8f, r.Top + r.Height * 0.28f) });
+            }
+            protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+            {
+                e.TextColor = e.Item.Enabled ? Navy : Weak;
+                base.OnRenderItemText(e);
+            }
+        }
+    }
+
+    // Button semantics (default action, keyboard, accessibility and Click) stay
+    // with WinForms; only the surface is drawn here.
+    internal class ModernButton : Button
+    {
+        internal bool Primary;
+        private bool _hover, _pressed;
+        public ModernButton()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint
+                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        }
+        protected override void OnMouseEnter(EventArgs e) { _hover = true; base.OnMouseEnter(e); Invalidate(); }
+        protected override void OnMouseLeave(EventArgs e) { _hover = _pressed = false; base.OnMouseLeave(e); Invalidate(); }
+        protected override void OnMouseDown(MouseEventArgs e) { if (e.Button == MouseButtons.Left) _pressed = true; base.OnMouseDown(e); Invalidate(); }
+        protected override void OnMouseUp(MouseEventArgs e) { _pressed = false; base.OnMouseUp(e); Invalidate(); }
+        protected override void OnKeyDown(KeyEventArgs e) { if (e.KeyCode == Keys.Space) _pressed = true; base.OnKeyDown(e); Invalidate(); }
+        protected override void OnKeyUp(KeyEventArgs e) { _pressed = false; base.OnKeyUp(e); Invalidate(); }
+        protected override void OnEnabledChanged(EventArgs e) { _pressed = _hover = false; base.OnEnabledChanged(e); Invalidate(); }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.Clear(Parent == null ? Color.White : Parent.BackColor);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            Color fill = !Enabled ? (Primary ? UiStyle.Track : UiStyle.Canvas)
+                : _pressed ? FlatAppearance.MouseDownBackColor
+                : _hover ? FlatAppearance.MouseOverBackColor : BackColor;
+            int radius = Math.Max(2, (int)Math.Round(Height * 6.0 / 34.0));
+            using (GraphicsPath path = UiStyle.RoundedRectangle(new Rectangle(0, 0, Width - 1, Height - 1), radius))
+            {
+                using (SolidBrush b = new SolidBrush(fill)) g.FillPath(b, path);
+                if (FlatAppearance.BorderSize > 0)
+                    using (Pen p = new Pen(Primary ? fill : UiStyle.Border)) g.DrawPath(p, path);
+            }
+            TextRenderer.DrawText(g, Text, Font, ClientRectangle, Enabled ? ForeColor : UiStyle.Weak,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            if (Focused && ShowFocusCues)
+                ControlPaint.DrawFocusRectangle(g, Rectangle.Inflate(ClientRectangle, -5, -5), ForeColor, fill);
+        }
+    }
+
+    internal class ModernComboBox : ComboBox
+    {
+        private bool _hover;
+        public ModernComboBox()
+        {
+            DrawMode = DrawMode.OwnerDrawFixed;
+            FlatStyle = FlatStyle.Flat;
+        }
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            ItemHeight = Math.Max(18, Font.Height + 6);
+        }
+        protected override void OnMouseEnter(EventArgs e) { _hover = true; base.OnMouseEnter(e); Invalidate(); }
+        protected override void OnMouseLeave(EventArgs e) { _hover = false; base.OnMouseLeave(e); Invalidate(); }
+        protected override void OnDrawItem(DrawItemEventArgs e)
+        {
+            bool selected = (e.State & DrawItemState.Selected) != 0;
+            bool closed = (e.State & DrawItemState.ComboBoxEdit) != 0;
+            selected = selected && !closed;
+            Color bg = !Enabled ? UiStyle.Canvas : selected ? UiStyle.Selected : Color.White;
+            using (SolidBrush b = new SolidBrush(bg)) e.Graphics.FillRectangle(b, e.Bounds);
+            string text = e.Index >= 0 && e.Index < Items.Count ? Items[e.Index].ToString() : Text;
+            Rectangle bounds = e.Bounds; bounds.X += 4; bounds.Width -= 8;
+            TextRenderer.DrawText(e.Graphics, text, Font, bounds, !Enabled ? UiStyle.Weak
+                : selected ? UiStyle.Primary : UiStyle.Navy, TextFormatFlags.Left
+                | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            if (!closed && (e.State & DrawItemState.Focus) != 0) e.DrawFocusRectangle();
+        }
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            bool print = m.Msg == 0x0317 || m.Msg == 0x0318;
+            if ((m.Msg != 0x000F && !print) || Width < 2 || Height < 2) return;
+            using (Graphics g = print ? Graphics.FromHdc(m.WParam) : CreateGraphics())
+            using (Pen p = new Pen(Focused || DroppedDown ? UiStyle.Primary
+                : _hover ? UiStyle.CircleHover : UiStyle.StrongBorder))
+            {
+                int arrowWidth = SystemInformation.VerticalScrollBarWidth + 2;
+                Rectangle arrow = new Rectangle(Width - arrowWidth - 1, 1, arrowWidth, Height - 2);
+                using (SolidBrush bg = new SolidBrush(DroppedDown ? UiStyle.Selected
+                    : _hover ? UiStyle.TealLight : UiStyle.Secondary))
+                    g.FillRectangle(bg, arrow);
+                int cx = arrow.Left + arrow.Width / 2, cy = Height / 2;
+                using (Pen ink = new Pen(Enabled ? UiStyle.Primary : UiStyle.Weak, 1.5f))
+                    g.DrawLines(ink, new Point[] { new Point(cx - 4, cy - 2), new Point(cx, cy + 2), new Point(cx + 4, cy - 2) });
+                g.DrawRectangle(p, 0, 0, Width - 1, Height - 1);
+            }
         }
     }
 }

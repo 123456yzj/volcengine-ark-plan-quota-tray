@@ -44,19 +44,20 @@ function Find-Csc {
 $csc = Find-Csc
 Write-Host "compiler: $csc"
 
-# Generate a small .ico (teal rounded square) so the exe has a native icon.
+# Generate a small .ico (sky-blue circle with fog-white center) so the exe has a native icon.
 # Fully offline: written as raw bytes, no download and no image library.
 $icoPath = Join-Path $bin 'ark_left.ico'
-if (-not (Test-Path -LiteralPath $icoPath)) {
+if (-not (Test-Path -LiteralPath $icoPath) -or
+    (Get-Item -LiteralPath $PSCommandPath).LastWriteTimeUtc -gt (Get-Item -LiteralPath $icoPath).LastWriteTimeUtc) {
     try {
         Add-Type -AssemblyName System.Drawing
         $bmp = New-Object System.Drawing.Bitmap 32, 32
         $g = [System.Drawing.Graphics]::FromImage($bmp)
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
         $g.Clear([System.Drawing.Color]::Transparent)
-        $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(18, 184, 134))
+        $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(58, 131, 247))
         $g.FillEllipse($brush, 2, 2, 27, 27)
-        $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(245, 255, 252))
+        $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
         $g.FillEllipse($white, 11, 12, 10, 10)
         $g.Dispose()
         $hicon = $bmp.GetHicon()

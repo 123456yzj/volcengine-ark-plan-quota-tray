@@ -42,6 +42,17 @@ namespace ArkLeft.Tests
                     foreach (string failure in _failures) Console.WriteLine(failure);
                     return _failed == 0 ? 0 : 1;
                 }
+                if (args.Length == 1 && args[0] == "--floating-amount")
+                {
+                    EffectiveQuotaCases();
+                    FloatingSelectionCases();
+                    FloatingDisplayCases();
+                    FloatingWindowCases();
+                    FloatingTrayAppCases();
+                    Console.WriteLine("floating-amount: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
                 return RunTests();
             }
             catch (Exception ex)
@@ -1573,6 +1584,149 @@ namespace ArkLeft.Tests
             Check("circle.sub1", FloatingQuotaForm.CirclePercent(0.4), "<1%");
             Check("circle.half", FloatingQuotaForm.CirclePercent(50), "50%");
             Check("circle.noFakeFull", FloatingQuotaForm.CirclePercent(99.6), "99%");
+            FloatingAmountCases();
+        }
+
+        private static void FloatingAmountCases()
+        {
+            QuotaSnapshot snap = new QuotaSnapshot();
+            ProductQuota product = new ProductQuota { Product = "agent-plan",
+                SubscribedKnown = true, Subscribed = true };
+            PeriodQuota period = EffectivePeriod("5h", 9703.75, 10000);
+            product.Periods.Add(period);
+            snap.Products.Add(product);
+            PanelView view = new PanelView { Data = snap, State = PanelState.ShowingCurrent };
+            Rectangle area = Screen.PrimaryScreen.WorkingArea;
+
+            using (FloatingQuotaForm floating = new FloatingQuotaFormForData(snap))
+            {
+                FloatingCircleControl circle = floating.CircleForTest;
+                circle.SetReduceMotion(true);
+                circle.ShowAt(area, 1.0);
+                Check("amount.normal.percent", circle.PercentTextForTest, "97%");
+                Check("amount.normal.text", circle.AmountTextForTest, "9703.75 AFP");
+                Check("amount.normal.fitted", circle.FittedAmountTextForTest, "9703.75 AFP");
+                Check("amount.normal.tooltipProduct", circle.TooltipForTest.Contains("Agent Plan"), true);
+                Check("amount.normal.tooltipPeriod", circle.TooltipForTest.Contains("5 小时"), true);
+
+                period.RemainingAmount = 0;
+                floating.ApplyModelView(view);
+                Check("amount.zero.known", floating.SelectedEntryForTest.AmountKnown, true);
+                Check("amount.zero.percent", circle.PercentTextForTest, "0%");
+                Check("amount.zero.text", circle.AmountTextForTest, "0 AFP");
+
+                period.AmountKnown = false;
+                period.RemainingAmount = 9703.75;
+                period.RemainingPercent = 97;
+                floating.ApplyModelView(view);
+                Check("amount.unknown.entry", floating.SelectedEntryForTest.AmountKnown, false);
+                Check("amount.unknown.percentStillKnown", circle.PercentTextForTest, "97%");
+                Check("amount.unknown.text", circle.AmountTextForTest, "AFP 未知");
+                period.PercentKnown = false;
+                floating.ApplyModelView(view);
+                Check("amount.bothUnknown.percent", circle.PercentTextForTest, "剩余未知");
+                Check("amount.bothUnknown.text", circle.AmountTextForTest, "AFP 未知");
+
+                period.AmountKnown = true;
+                period.TotalKnown = false;
+                floating.ApplyModelView(view);
+                Check("amount.percentUnknown.percent", circle.PercentTextForTest, "剩余未知");
+                Check("amount.percentUnknown.text", circle.AmountTextForTest, "9703.75 AFP");
+                period.TotalKnown = true;
+
+                product.Periods.Add(EffectivePeriod("weekly", 9000, 20000));
+                product.Periods.Add(EffectivePeriod("monthly", 1234.5, 30000));
+                floating.ApplyModelView(view);
+                FloatingEntry entry = floating.SelectedEntryForTest;
+                Check("amount.effective.selected", entry.Label, "5h");
+                CheckClose("amount.effective.value", entry.RemainingAmount, 1234.5);
+                CheckClose("amount.effective.percent", entry.Percent, 12.345);
+                Check("amount.effective.text", circle.AmountTextForTest, "1234.5 AFP");
+                Check("amount.effective.percentText", circle.PercentTextForTest, "12%");
+                CheckClose("amount.effective.rawUnchanged", period.RemainingAmount, 9703.75);
+
+                FloatingSettings weekly = new FloatingSettings { Version = 1,
+                    ProductKey = FloatingSettingsStore.ProductKey(product), PeriodLabel = "weekly" };
+                using (FloatingQuotaForm selected = new FloatingQuotaFormForData(snap, weekly))
+                {
+                    Check("amount.selected.period", selected.SelectedEntryForTest.Label, "weekly");
+                    Check("amount.selected.percent", selected.CircleForTest.PercentTextForTest, "6%");
+                    Check("amount.selected.text", selected.CircleForTest.AmountTextForTest, "1234.5 AFP");
+                    product.Periods[1].Error = "该周期查询失败。";
+                    selected.ApplyModelView(view);
+                    Check("amount.error.text", selected.CircleForTest.AmountTextForTest, "AFP 未知");
+                    Check("amount.error.percent", selected.CircleForTest.PercentTextForTest, "剩余未知");
+                }
+                product.Periods.RemoveRange(1, 2);
+
+                foreach (double amount in new double[] { 9703.75, 123456789012345.67, double.MaxValue })
+                {
+                    period.RemainingAmount = amount;
+                    period.Total = amount / 0.97;
+                    period.RemainingPercent = 97;
+                    period.PercentKnown = true;
+                    floating.ApplyModelView(view);
+                    foreach (double scale in new double[] { 1.0, 1.5, 2.0 })
+                    {
+                        circle.ShowAt(area, scale);
+                        string tag = "amount.fit." + amount + "." + scale;
+                        string text = circle.FittedAmountTextForTest;
+                        Rectangle bounds = circle.AmountBoundsForTest;
+                        Check(tag + ".width", TextRenderer.MeasureText(text, circle.AmountFontForTest).Width
+                            <= bounds.Width - 2, true);
+                        Check(tag + ".height", circle.AmountFontForTest.Height <= bounds.Height, true);
+                        Check(tag + ".topLeftInside", circle.Region.IsVisible(bounds.Left, bounds.Top), true);
+                        Check(tag + ".bottomRightInside", circle.Region.IsVisible(bounds.Right, bounds.Bottom), true);
+                        Check(tag + ".scientific", text.Contains("E+"), amount > 1e12);
+                        Check(tag + ".unit", text.EndsWith(" AFP", StringComparison.Ordinal), true);
+                        Check(tag + ".fullTooltip", circle.TooltipForTest.Contains(
+                            DisplayNames.Number(amount) + " AFP"), true);
+                        using (Bitmap bitmap = new Bitmap(circle.Width, circle.Height))
+                        {
+                            circle.DrawToBitmap(bitmap, circle.ClientRectangle);
+                            bool amountInk = false, oldCaptionInk = false;
+                            for (int y = bounds.Top; y < circle.Height; y++)
+                                for (int x = 0; x < circle.Width; x++)
+                                    if (bitmap.GetPixel(x, y).ToArgb() == UiStyle.CircleCaption.ToArgb())
+                                    {
+                                        if (bounds.Contains(x, y)) amountInk = true;
+                                        else oldCaptionInk = true;
+                                    }
+                            Check(tag + ".painted", amountInk, true);
+                            Check(tag + ".noExtraCaption", oldCaptionInk, false);
+                            if (scale == 1.0)
+                                bitmap.Save(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                                    amount == 9703.75 ? "preview-floating-amount.png"
+                                        : amount == double.MaxValue ? "preview-floating-amount-max.png"
+                                        : "preview-floating-amount-long.png"));
+                        }
+                    }
+                }
+                floating.ApplyModelView(EmptyView());
+                Check("amount.noData.cleared", circle.AmountTextForTest, "");
+            }
+
+            int queries = 0;
+            using (TrayApp app = new TrayApp(delegate(IProgress<QueryProgress> progress,
+                System.Threading.CancellationToken token)
+                { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
+            {
+                foreach (double amount in new double[] { 9703.75, 0, double.MaxValue })
+                {
+                    period.AmountKnown = true;
+                    period.RemainingAmount = amount;
+                    app.ApplyViewForTest(snap);
+                    Check("amount.query.updated", app.CircleForTest.AmountTextForTest,
+                        DisplayNames.Number(amount) + " AFP");
+                }
+                period.AmountKnown = false;
+                app.ApplyViewForTest(snap);
+                Check("amount.query.unknown", app.CircleForTest.AmountTextForTest, "AFP 未知");
+                app.OpenEntryForTest("tray");
+                using (Bitmap bitmap = new Bitmap(app.CircleForTest.Width, app.CircleForTest.Height))
+                    app.CircleForTest.DrawToBitmap(bitmap, app.CircleForTest.ClientRectangle);
+                Check("amount.query.zero", queries, 0);
+            }
         }
 
         private static void FloatingWindowCases()
@@ -1601,11 +1755,11 @@ namespace ArkLeft.Tests
                 Check("floating.selectedPercentText", floating.CircleForTest.PercentTextForTest, "10%");
                 Check("floating.selectedTrusted", floating.CircleForTest.PercentKnownForTest, true);
                 Check("floating.defaultNotStored", floating.StoredSettingsForTest, null);
-                // Two separate visible caption lines: short product + period.
-                Check("floating.productCaption", floating.CircleForTest.ProductCaptionForTest, "Agent Plan");
-                Check("floating.periodCaption", floating.CircleForTest.PeriodCaptionForTest, "5 小时");
-                Check("floating.captionIncludesPeriod",
-                    floating.CircleForTest.CaptionForTest.Contains("5 小时"), true);
+                Check("floating.amountCaption", floating.CircleForTest.AmountTextForTest, "100 AFP");
+                Check("floating.tooltipIncludesProduct",
+                    floating.CircleForTest.TooltipForTest.Contains("Agent Plan"), true);
+                Check("floating.tooltipIncludesPeriod",
+                    floating.CircleForTest.TooltipForTest.Contains("5 小时"), true);
 
                 // Tooltip surfaces the PanelView's own safe freshness status and
                 // never fabricates a confirmed update for a limited result.
@@ -4453,6 +4607,7 @@ namespace ArkLeft.Tests
         // query, zero clipboard.
         private static void CompactUiCases()
         {
+            ModernBlueVisualCases();
             QuotaBar disposedBar = null;
             using (PopupForm compact = new PopupForm())
             {
@@ -4465,7 +4620,7 @@ namespace ArkLeft.Tests
                 Check("compact.widthReadable", compact.Width >= 325 && compact.Width <= 344, true);
                 Check("compact.heightReadable", compact.Height > 185 && compact.Height <= 340, true);
                 Check("compact.noScroll", compact.ContentForTest.VerticalScroll.Visible, false);
-                Check("compact.cardBg", compact.BackColor, Color.FromArgb(250, 251, 252));
+                Check("compact.cardBg", compact.BackColor, Color.FromArgb(248, 251, 255));
                 CheckCardLayout(compact, "compact.fit");
                 CheckPeriodGeometry(compact, "compact.100", 1.0);
                 SaveSpacingPreview(compact, "preview-spacing.png");
@@ -4505,7 +4660,7 @@ namespace ArkLeft.Tests
                 {
                     compact.DrawToBitmap(bitmap, compact.ClientRectangle);
                     Check("compact.oceanFrame", bitmap.GetPixel(0, compact.Height / 2).ToArgb(),
-                        Color.FromArgb(158, 211, 226).ToArgb());
+                        Color.FromArgb(216, 227, 240).ToArgb());
                 }
                 Console.WriteLine("compact fixture: " + compact.Width + "x" + compact.Height);
                 disposedBar = FindQuotaBar(compact);
@@ -4598,6 +4753,137 @@ namespace ArkLeft.Tests
             }
         }
 
+        private sealed class VisualButton : ModernButton
+        {
+            internal void Hover() { OnMouseEnter(EventArgs.Empty); }
+            internal void Press() { OnMouseDown(new MouseEventArgs(MouseButtons.Left, 1, 10, 10, 0)); }
+            internal void Release() { OnMouseUp(new MouseEventArgs(MouseButtons.Left, 1, 10, 10, 0)); }
+            internal void LeavePointer() { OnMouseLeave(EventArgs.Empty); }
+        }
+
+        private sealed class VisualCombo : ModernComboBox
+        {
+            internal void PaintItem(Graphics g, bool selected, bool closed = false)
+            {
+                OnDrawItem(new DrawItemEventArgs(g, Font, new Rectangle(0, 0, 180, 26), 0,
+                    (selected ? DrawItemState.Selected : DrawItemState.None)
+                    | (closed ? DrawItemState.ComboBoxEdit : DrawItemState.None)));
+            }
+        }
+
+        private static void CheckButtonPixel(VisualButton button, Color expected, string tag)
+        {
+            using (Bitmap bmp = new Bitmap(button.Width, button.Height))
+            {
+                button.DrawToBitmap(bmp, button.ClientRectangle);
+                Check(tag, bmp.GetPixel(12, 12).ToArgb(), expected.ToArgb());
+                Check(tag + ".roundCorner", bmp.GetPixel(0, 0).ToArgb(), Color.White.ToArgb());
+            }
+        }
+
+        private static void CheckMenuTheme(ToolStripDropDown menu, string tag)
+        {
+            Check(tag + ".white", menu.BackColor, Color.White);
+            Check(tag + ".renderer", menu.Renderer.GetType().Name, "ModernMenuRenderer");
+            foreach (ToolStripItem item in menu.Items)
+            {
+                Check(tag + ".ink", item.ForeColor, UiStyle.Navy);
+                ToolStripMenuItem child = item as ToolStripMenuItem;
+                if (child == null) continue;
+                using (Bitmap bmp = new Bitmap(Math.Max(10, item.Width), Math.Max(10, item.Height)))
+                using (Graphics g = Graphics.FromImage(bmp))
+                {
+                    menu.Renderer.DrawMenuItemBackground(new ToolStripItemRenderEventArgs(g, item));
+                    Check(tag + ".checkedSurface", bmp.GetPixel(5, 5).ToArgb(),
+                        (child.Checked ? UiStyle.Selected : Color.White).ToArgb());
+                }
+                if (child.HasDropDownItems) CheckMenuTheme(child.DropDown, tag + ".child");
+            }
+        }
+
+        private static void ModernBlueVisualCases()
+        {
+            Check("modern.primary", UiStyle.Primary.ToArgb(), Color.FromArgb(58, 131, 247).ToArgb());
+            Check("modern.text", UiStyle.Navy.ToArgb(), Color.FromArgb(36, 65, 92).ToArgb());
+            using (VisualButton b = new VisualButton())
+            {
+                b.Size = new Size(84, 34);
+                UiStyle.StyleButton(b, true);
+                CheckButtonPixel(b, UiStyle.Primary, "modern.button.default");
+                b.Hover(); CheckButtonPixel(b, UiStyle.PrimaryHover, "modern.button.hover");
+                b.Press(); CheckButtonPixel(b, UiStyle.PrimaryPressed, "modern.button.pressed");
+                b.Release(); CheckButtonPixel(b, UiStyle.PrimaryHover, "modern.button.release");
+                b.Enabled = false; CheckButtonPixel(b, UiStyle.Track, "modern.button.disabled");
+                b.Enabled = true; b.LeavePointer(); UiStyle.StyleButton(b, false);
+                CheckButtonPixel(b, Color.White, "modern.secondary.default");
+                b.Hover(); CheckButtonPixel(b, UiStyle.Secondary, "modern.secondary.hover");
+                b.Press(); CheckButtonPixel(b, UiStyle.Selected, "modern.secondary.pressed");
+            }
+            using (VisualCombo combo = new VisualCombo())
+            using (Bitmap bmp = new Bitmap(180, 26))
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                combo.Items.Add("Agent Plan · 5 小时");
+                combo.PaintItem(g, false);
+                Check("modern.selector.default", bmp.GetPixel(170, 12).ToArgb(), Color.White.ToArgb());
+                combo.PaintItem(g, true);
+                Check("modern.selector.selected", bmp.GetPixel(170, 12).ToArgb(), UiStyle.Selected.ToArgb());
+                combo.PaintItem(g, true, true);
+                Check("modern.selector.closedSelected", bmp.GetPixel(170, 12).ToArgb(), Color.White.ToArgb());
+                bool navyInk = false;
+                for (int y = 0; y < bmp.Height; y++)
+                    for (int x = 0; x < 160; x++)
+                        if (bmp.GetPixel(x, y).ToArgb() == UiStyle.Navy.ToArgb()) navyInk = true;
+                Check("modern.selector.closedInk", navyInk, true);
+            }
+            using (ContextMenuStrip menu = new ContextMenuStrip())
+            using (Bitmap bmp = new Bitmap(100, 30))
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                ToolStripMenuItem item = new ToolStripMenuItem("设置");
+                menu.Items.Add(item); UiStyle.StyleMenu(menu);
+                item.Select();
+                menu.Renderer.DrawMenuItemBackground(new ToolStripItemRenderEventArgs(g, item));
+                Check("modern.menu.hover", bmp.GetPixel(5, 5).ToArgb(), UiStyle.TealLight.ToArgb());
+            }
+            List<FloatingEntry> candidates = FloatingSelection.SelectableCandidates(
+                FloatingSelection.Build(SyntheticSample.BuildLarge()));
+            using (FloatingSettingsForm settings = new FloatingSettingsForm(candidates, null,
+                delegate(FloatingSettings s) { return true; }))
+            {
+                Check("modern.settings.white", settings.BackColor, Color.White);
+                Check("modern.settings.header", settings.HeaderForTest.BackColor, Color.White);
+                Check("modern.settings.button", settings.SaveButtonForTest is ModernButton, true);
+                Check("modern.settings.selector", settings.ComboForTest is ModernComboBox, true);
+                Check("modern.settings.rounded", settings.Region != null, true);
+            }
+            using (FloatingQuotaForm floating = new FloatingQuotaForm(
+                delegate { return (FloatingSettings)null; }, delegate(FloatingSettings s) { return true; },
+                delegate { return (FloatingPreferences)null; }, delegate(FloatingPreferences p) { return true; }))
+            {
+                PanelModel model = new PanelModel();
+                model.OnAuthResult(true, PopupForm.SampleIdentity(), QuotaStatus.Ok, null);
+                floating.ApplyModelView(model.OnUsageResult(SyntheticSample.BuildLarge(), null, ScopeVerdict.Same, null));
+                ContextMenuStrip menu = floating.CircleForTest.ContextMenuStrip;
+                UiStyle.StyleMenu(menu);
+                CheckMenuTheme(menu, "modern.menu");
+                ToolStripMenuItem settings = (ToolStripMenuItem)menu.Items[0];
+                ToolStripMenuItem content = (ToolStripMenuItem)settings.DropDownItems[0];
+                ToolStripItem old = content.DropDownItems[0];
+                floating.PopulateContentMenu(content);
+                Check("modern.menu.rebuilt", ReferenceEquals(old, content.DropDownItems[0]), false);
+                CheckMenuTheme(menu, "modern.menu.rebuilt");
+            }
+            using (QuotaBar bar = new QuotaBar())
+            using (Bitmap bmp = new Bitmap(100, 6))
+            {
+                bar.Size = bmp.Size; bar.Value = 50;
+                bar.DrawToBitmap(bmp, bar.ClientRectangle);
+                Check("modern.bar.fill", bmp.GetPixel(20, 3).ToArgb(), UiStyle.Primary.ToArgb());
+                Check("modern.bar.track", bmp.GetPixel(80, 3).ToArgb(), UiStyle.Track.ToArgb());
+            }
+        }
+
         private static void CheckLongAmount(PopupForm form, string tag)
         {
             bool found = false;
@@ -4667,7 +4953,7 @@ namespace ArkLeft.Tests
                 for (int s = 0; s < panel.PeriodSurfacesForTest.Count; s++)
                 {
                     CardPanel.PeriodSurface surface = panel.PeriodSurfacesForTest[s];
-                    Check(tag + ".surfaceFill" + s, surface.Fill, Color.FromArgb(240, 244, 248));
+                    Check(tag + ".surfaceFill" + s, surface.Fill, Color.FromArgb(242, 247, 255));
                     Check(tag + ".surfaceRadius" + s, surface.Radius, radius);
                     Check(tag + ".surfaceLeft" + s, surface.Bounds.Left, edge);
                     Check(tag + ".surfaceRight" + s, card.ClientSize.Width - surface.Bounds.Right, edge);
@@ -4781,7 +5067,7 @@ namespace ArkLeft.Tests
             {
                 circle.ShowAt(wa, 1.0);
                 circle.SetReduceMotion(true);
-                foreach (double percent in new double[] { 0, 50, 100 })
+                foreach (double percent in new double[] { 0, 50, 97, 100 })
                 {
                     circle.SetDisplay(new FloatingDisplay { HasData = true, PercentKnown = true,
                         Percent = percent, PercentText = percent + "%" });
@@ -4789,11 +5075,11 @@ namespace ArkLeft.Tests
                     {
                         circle.DrawToBitmap(bitmap, circle.ClientRectangle);
                         Color top = bitmap.GetPixel(circle.Width / 2, 12);
-                        Check("circle.skyOrWhite", top.ToArgb(), (percent == 100
-                            ? Color.FromArgb(135, 206, 235) : Color.White).ToArgb());
+                        Check("circle.skyOrWhite", top.ToArgb(), (percent >= 97
+                            ? Color.FromArgb(90, 154, 248) : Color.White).ToArgb());
                         Color ring = bitmap.GetPixel(0, circle.Height / 2);
-                        Check("circle.grayRing", Math.Abs(ring.R - ring.G) <= 1
-                            && Math.Abs(ring.G - ring.B) <= 1, true);
+                        Check("circle.bluegrayRing", ring.G - ring.R >= 8
+                            && ring.B - ring.G >= 3 && ring.B >= 200, true);
                     }
                 }
             }

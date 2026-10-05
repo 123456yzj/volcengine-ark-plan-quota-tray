@@ -168,10 +168,11 @@ namespace ArkLeft
         public string Tier;
         public string Label;
         public string ProductTitle;
-        public string ProductShort;   // short product name for the circle line
         public string PeriodTitle;
         public bool PercentKnown;
         public double Percent;            // remaining percent, 0..100
+        public bool AmountKnown;
+        public double RemainingAmount;
         public bool ProductSubscribedKnown;
         public bool ProductSubscribed;
         public bool ProductError;
@@ -258,12 +259,13 @@ namespace ArkLeft
                     e.Tier = pq.Tier;
                     e.Label = p.Label;
                     e.ProductTitle = productTitle;
-                    e.ProductShort = DisplayNames.Product(pq.Product);
                     e.PeriodTitle = p.LabelDisplay != null ? p.LabelDisplay
                         : DisplayNames.Period(p.Label);
                     EffectivePeriodQuota effective = QuotaDisplay.Effective(pq, p);
                     e.PercentKnown = effective.PercentKnown;
                     e.Percent = effective.RemainingPercent;
+                    e.AmountKnown = effective.AmountKnown;
+                    e.RemainingAmount = effective.RemainingAmount;
                     e.ProductSubscribedKnown = pq.SubscribedKnown;
                     e.ProductSubscribed = pq.Subscribed;
                     e.ProductError = pq.Error != null;
@@ -405,9 +407,8 @@ namespace ArkLeft
         public bool PercentKnown;
         public double Percent;
         public string PercentText;
-        public string Caption;        // combined, newline-separated (tests / tooltip)
-        public string ProductCaption; // short product name line
-        public string PeriodCaption;  // period line (always kept separate)
+        public bool AmountKnown;
+        public double RemainingAmount;
         public string Tooltip;
     }
 
@@ -442,8 +443,9 @@ namespace ArkLeft
         private bool _percentKnown;
         private double _percent;
         private string _percentText = "暂无数据";
-        private string _productCaption = "";
-        private string _periodCaption = "";
+        private bool _amountKnown;
+        private double _amount;
+        private string _amountText = "";
         private string _tooltip = "暂无数据";
 
         private bool _down;
@@ -654,9 +656,12 @@ namespace ArkLeft
             _percent = d == null ? 0 : d.Percent;
             _percentText = d == null || string.IsNullOrEmpty(d.PercentText)
                 ? "暂无数据" : d.PercentText;
-            _productCaption = d == null ? "" : (d.ProductCaption ?? "");
-            _periodCaption = d == null ? "" : (d.PeriodCaption ?? "");
+            _amountKnown = _hasData && d.AmountKnown;
+            _amount = d == null ? 0 : d.RemainingAmount;
+            _amountText = !_hasData ? "" : _amountKnown
+                ? DisplayNames.Number(_amount) + " AFP" : "AFP 未知";
             _tooltip = d == null ? "暂无数据" : (d.Tooltip ?? "");
+            if (_hasData) _tooltip += "\n" + _amountText;
             UpdateWaveState();
             if (Visible) Invalidate();
         }
@@ -808,6 +813,22 @@ namespace ArkLeft
 
         // ---- painting ----
 
+        private Rectangle AmountBounds
+        {
+            get
+            {
+                float w = Width - 1, h = Height - 1;
+                return new Rectangle((int)(w * 0.08f), (int)(h * 0.59f),
+                    (int)(w * 0.84f), (int)(h * 0.16f));
+            }
+        }
+
+        private string FittedAmountText
+        {
+            get { return PopupForm.FitAmountText(_amountText, _amountKnown
+                ? _amount : double.NaN, AmountBounds.Width, _captionFont, "AFP"); }
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -819,7 +840,7 @@ namespace ArkLeft
             // intermediate values draw layered waves.
             if (_hasData && _percentKnown && _percent >= 100)
             {
-                using (SolidBrush full = new SolidBrush(Color.FromArgb(135, 206, 235)))
+                using (SolidBrush full = new SolidBrush(UiStyle.Water))
                     g.FillRectangle(full, 0, 0, Width, Height);
             }
             else if (_hasData && _percentKnown && _percent > 0)
@@ -829,30 +850,23 @@ namespace ArkLeft
                 DrawWaves(g, w, h, level);
             }
 
-            using (Pen ring = new Pen(_hovered || Focused
-                ? Color.FromArgb(130, 130, 130) : Color.FromArgb(180, 180, 180),
+            using (Pen ring = new Pen(Focused ? UiStyle.Primary
+                : _hovered ? UiStyle.CircleHover : UiStyle.CircleRing,
                 Math.Max(1.5f, w * (_hovered || Focused ? 0.022f : 0.012f))))
                 g.DrawEllipse(ring, 0.5f, 0.5f, w, h);
 
             StringFormat center = new StringFormat();
             center.Alignment = StringAlignment.Center;
             center.LineAlignment = StringAlignment.Center;
-            using (SolidBrush white = new SolidBrush(UiStyle.Navy))
+            using (SolidBrush white = new SolidBrush(UiStyle.CircleNumber))
                 g.DrawString(_percentText, _percentFont, white,
-                    new RectangleF(0, 0, w, h * 0.64f), center);
-            if (_productCaption.Length > 0)
-            {
-                using (SolidBrush soft = new SolidBrush(UiStyle.Navy))
-                {
-                    // Product line: long names ellipsize, but the period line is
-                    // always drawn separately below so it is never truncated away.
-                    g.DrawString(Truncate(_productCaption, 14), _captionFont, soft,
-                        new RectangleF(w * 0.08f, h * 0.65f, w * 0.84f, h * 0.12f), center);
-                    if (_periodCaption.Length > 0)
-                        g.DrawString(_periodCaption, _captionFont, soft,
-                            new RectangleF(w * 0.08f, h * 0.77f, w * 0.84f, h * 0.12f), center);
-                }
-            }
+                    _hasData ? new RectangleF(0, h * 0.24f, w, h * 0.32f)
+                        : new RectangleF(0, 0, w, h), center);
+            if (_amountText.Length > 0)
+                TextRenderer.DrawText(g, FittedAmountText, _captionFont, AmountBounds,
+                    UiStyle.CircleCaption, TextFormatFlags.HorizontalCenter
+                    | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine
+                    | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             center.Dispose();
         }
 
@@ -863,11 +877,11 @@ namespace ArkLeft
             // is tiny; limit the amplitude so 1% never paints a large volume.
             float maxAmp = Math.Min(top, h - top) * 0.5f;
             if (maxAmp < 0f) maxAmp = 0f;
-            for (int layer = 0; layer < 2; layer++)
+            for (int layer = 0; layer < 3; layer++)
             {
                 float amp = h * (layer == 0 ? 0.028f : 0.020f);
                 if (amp > maxAmp) amp = maxAmp;
-                float baseTop = top + (layer == 0 ? amp * 0.4f : -amp * 0.3f);
+                float baseTop = top + (layer == 2 ? amp * 0.4f : -amp * 0.3f);
                 float phaseX = _phase * (layer == 0 ? 1f : -1.15f) + layer * 1.7f;
                 float step = Math.Max(2f, w / 40f);
                 using (GraphicsPath path = new GraphicsPath())
@@ -881,9 +895,8 @@ namespace ArkLeft
                     }
                     path.AddLine(w, WaveY(baseTop, amp, phaseX, w, w), w, h);
                     path.CloseFigure();
-                    Color c = layer == 0
-                        ? Color.FromArgb(190, 226, 243)
-                        : Color.FromArgb(135, 206, 235);
+                    Color c = layer == 0 ? UiStyle.HighlightBlue
+                        : layer == 1 ? UiStyle.SecondaryBlue : UiStyle.Water;
                     using (SolidBrush b = new SolidBrush(c)) g.FillPath(b, path);
                 }
             }
@@ -894,12 +907,6 @@ namespace ArkLeft
             if (w <= 0) return baseTop;
             double t = (x / w) * Math.PI * 3.0 + phase;
             return baseTop + (float)Math.Sin(t) * amp;
-        }
-
-        private static string Truncate(string s, int max)
-        {
-            if (string.IsNullOrEmpty(s) || s.Length <= max) return s;
-            return s.Substring(0, max) + "…";
         }
 
         protected override void Dispose(bool disposing)
@@ -922,9 +929,10 @@ namespace ArkLeft
         internal bool WaveRunningForTest { get { return _wave.Enabled; } }
         internal string PercentTextForTest { get { return _percentText; } }
         internal bool PercentKnownForTest { get { return _percentKnown; } }
-        internal string CaptionForTest { get { return _productCaption + " " + _periodCaption; } }
-        internal string ProductCaptionForTest { get { return _productCaption; } }
-        internal string PeriodCaptionForTest { get { return _periodCaption; } }
+        internal string AmountTextForTest { get { return _amountText; } }
+        internal string FittedAmountTextForTest { get { return FittedAmountText; } }
+        internal Rectangle AmountBoundsForTest { get { return AmountBounds; } }
+        internal Font AmountFontForTest { get { return _captionFont; } }
         internal string TooltipForTest { get { return _tooltip; } }
         internal string HoverTooltipForTest { get { return _tip.GetToolTip(this); } }
         internal bool DraggingForTest { get { return _dragging; } }
@@ -1028,7 +1036,7 @@ namespace ArkLeft
             // consistently with the shared menu's submenu label.
             Text = "悬浮内容";
             AccessibleName = "悬浮内容";
-            BackColor = UiStyle.Canvas;
+            BackColor = Color.White;
             KeyPreview = true;
 
             // UX015/T042: physical margins first (scale-independent), then an
@@ -1050,8 +1058,15 @@ namespace ArkLeft
                 Math.Min(S(208), availH));
 
             Panel header = new Panel();
-            header.BackColor = UiStyle.Navy;
+            header.BackColor = Color.White;
             _headerPanel = header;
+            header.Paint += delegate(object sender, PaintEventArgs e)
+            {
+                using (Pen pen = new Pen(UiStyle.Border))
+                    e.Graphics.DrawLine(pen, 0, 0, header.Width - 1, 0);
+                using (Pen pen = new Pen(UiStyle.Divider))
+                    e.Graphics.DrawLine(pen, 1, header.Height - 1, header.Width - 2, header.Height - 1);
+            };
             // The border-less header is the drag handle (production mouse drag,
             // not just a static title). The close button is a child and its own
             // clicks do not bubble as a header MouseDown on it.
@@ -1061,21 +1076,22 @@ namespace ArkLeft
             Label heading = new Label();
             heading.Text = "悬浮内容";
             heading.Font = F(10f, true);
-            heading.ForeColor = Color.White;
+            heading.ForeColor = UiStyle.Navy;
             heading.TextAlign = ContentAlignment.MiddleLeft;
             heading.MouseDown += HeaderMouseDown;
             heading.MouseMove += HeaderMouseMove;
             heading.MouseUp += HeaderMouseUp;
             _heading = heading;
-            Button closeBtn = new Button();
+            Button closeBtn = new ModernButton();
             closeBtn.Text = "×";
             closeBtn.AccessibleName = "关闭设置";
             closeBtn.Font = F(14f, false);
             closeBtn.FlatStyle = FlatStyle.Flat;
             closeBtn.FlatAppearance.BorderSize = 0;
-            closeBtn.BackColor = UiStyle.Navy;
-            closeBtn.ForeColor = Color.White;
-            closeBtn.FlatAppearance.MouseOverBackColor = Color.FromArgb(51, 79, 98);
+            closeBtn.BackColor = Color.White;
+            closeBtn.ForeColor = UiStyle.Navy;
+            closeBtn.FlatAppearance.MouseOverBackColor = UiStyle.TealLight;
+            closeBtn.FlatAppearance.MouseDownBackColor = UiStyle.Selected;
             closeBtn.Click += delegate { Close(); };
             _closeBtn = closeBtn;
             header.Controls.Add(heading);
@@ -1085,7 +1101,7 @@ namespace ArkLeft
             // UX015: scrollable middle host — the header and the save / cancel
             // row stay fixed so a short work area can never hide the buttons.
             Panel host = new Panel();
-            host.BackColor = UiStyle.Canvas;
+            host.BackColor = Color.White;
             host.AutoScroll = true;
             _contentHost = host;
             Controls.Add(host);
@@ -1098,10 +1114,12 @@ namespace ArkLeft
             _hint = hint;
             host.Controls.Add(hint);
 
-            _combo = new ComboBox();
+            _combo = new ModernComboBox();
             _combo.DropDownStyle = ComboBoxStyle.DropDownList;
             _combo.AccessibleName = "显示目标";
             _combo.Font = F(9f, false);
+            _combo.ForeColor = UiStyle.Navy;
+            _combo.BackColor = Color.White;
             // Long product (edition / tier) + period + state strings must remain
             // readable in the dropped list; the dropdown width is MEASURED from
             // the widest item below and clamped to the owner work area. Native
@@ -1136,11 +1154,11 @@ namespace ArkLeft
 
             _error = new Label();
             _error.AutoSize = false;
-            _error.ForeColor = Color.FromArgb(217, 72, 15);
+            _error.ForeColor = UiStyle.Error;
             _error.Font = F(8.25f, false);
             host.Controls.Add(_error);
 
-            Button saveBtn = new Button();
+            Button saveBtn = new ModernButton();
             saveBtn.Text = "保存";
             saveBtn.AccessibleName = "保存显示目标";
             saveBtn.Font = F(9f, false);
@@ -1149,7 +1167,7 @@ namespace ArkLeft
             _saveBtn = saveBtn;
             Controls.Add(saveBtn);
 
-            Button cancelBtn = new Button();
+            Button cancelBtn = new ModernButton();
             cancelBtn.Text = "取消";
             cancelBtn.AccessibleName = "取消设置";
             cancelBtn.Font = F(9f, false);
@@ -1241,15 +1259,15 @@ namespace ArkLeft
         {
             int cw = ClientSize.Width;
             int ch = ClientSize.Height;
-            _headerPanel.SetBounds(0, 0, cw, S(46));
+            _headerPanel.SetBounds(1, 0, cw - 2, S(46));
             _closeBtn.SetBounds(cw - S(6) - S(34), S(6), S(34), S(34));
-            _heading.SetBounds(S(20), 0,
-                Math.Max(S(40), cw - S(20) - _closeBtn.Width - S(26)), S(46));
+            _heading.SetBounds(S(20), 1,
+                Math.Max(S(40), cw - S(20) - _closeBtn.Width - S(26)), S(46) - 2);
             int btnH = S(34);
             int bottomPad = S(8);
             int hostTop = S(46);
             int hostH = Math.Max(S(40), ch - btnH - bottomPad - hostTop);
-            _contentHost.SetBounds(0, hostTop, cw, hostH);
+            _contentHost.SetBounds(1, hostTop, cw - 2, hostH);
             int contentW = Math.Max(S(80), cw - S(40));
             _hint.SetBounds(S(20), S(16), contentW, S(22));
             _combo.SetBounds(S(20), S(44), contentW, S(28));
@@ -1262,6 +1280,23 @@ namespace ArkLeft
             _saveBtn.SetBounds(Math.Max(S(8), _cancelBtn.Left - S(6) - btnW),
                 ch - bottomPad - btnH, btnW, btnH);
             SizeErrorForReadability();
+            using (GraphicsPath path = UiStyle.RoundedRectangle(
+                new Rectangle(0, 0, cw - 1, ch - 1), S(8)))
+            {
+                Region old = Region;
+                Region = new Region(path);
+                if (old != null) old.Dispose();
+            }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (Pen pen = new Pen(UiStyle.Border))
+            using (GraphicsPath path = UiStyle.RoundedRectangle(
+                new Rectangle(0, 0, Width - 1, Height - 1), S(8)))
+                e.Graphics.DrawPath(pen, path);
         }
 
         private void SetError(string text)
@@ -1315,6 +1350,7 @@ namespace ArkLeft
                     try { f.Dispose(); } catch (Exception) { }
                 }
                 _fonts.Clear();
+                if (Region != null) { Region.Dispose(); Region = null; }
             }
             base.Dispose(disposing);
         }
@@ -1618,6 +1654,7 @@ namespace ArkLeft
                 item.Click += delegate { ApplyContentSelection(captured, generation); };
                 contentItem.DropDownItems.Add(item);
             }
+            UiStyle.StyleMenuBranch(contentItem);
         }
 
         // v0.15 UX023: rebuild deterministically releases the old items, but the
@@ -2135,17 +2172,14 @@ namespace ArkLeft
                 // to reselect. Never silently switch to another target.
                 d.HasData = false;
                 d.PercentText = "暂无数据";
-                d.PeriodCaption = DisplayNames.Period(_selected.PeriodLabel);
-                d.Caption = d.PeriodCaption;
                 d.Tooltip = AppendHint("已选目标暂无数据，请在设置中重新选择。");
                 _circle.SetDisplay(d);
                 return;
             }
 
             d.HasData = true;
-            d.ProductCaption = e.ProductShort;
-            d.PeriodCaption = e.PeriodTitle;
-            d.Caption = e.ShortCaption;
+            d.AmountKnown = e.Selectable && e.AmountKnown;
+            d.RemainingAmount = e.RemainingAmount;
             if (!e.HasTrustedValue)
             {
                 d.PercentKnown = false;
