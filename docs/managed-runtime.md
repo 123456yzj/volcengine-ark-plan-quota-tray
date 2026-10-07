@@ -1,6 +1,6 @@
 # Managed ArkCLI Runtime
 
-本文描述 Managed Runtime 的**计划 / 待验收**方案，以下目录、调用、登录、更新、回滚和分发行为均不代表当前已交付能力。分支已提交源码使用本机 ArkCLI，不包含 Managed Runtime、应用内登录或自动更新；工作区存在未提交候选代码，验收结果尚未登记。与已接受业务 / 交互基线的差异见 [implementation-gaps.md](implementation-gaps.md)。
+Managed Runtime、自带 bootstrap、应用内登录、自动更新 / 回滚等均为**计划 / 待验收，尚未进入当前分支实现**。本文以下目录、调用、登录、更新、回滚和分发规则均为设计目标；当前分支使用本机 ArkCLI，登录由用户在终端完成。与已接受业务 / 交互基线的差异见 [implementation-gaps.md](implementation-gaps.md)。
 
 计划使用自带、托管的 ArkCLI，发布包拟包含官方 1.0.37
 Windows AMD64 / ARM64 bootstrap；首次运行拟按 Windows 原生架构导入用户目录，
@@ -25,12 +25,12 @@ Runtime 版本不参与业务身份。
 无效开发覆盖会明确失败；正式安装不要求用户配置覆盖或 PATH。
 `ARK_LEFT_RUNTIME_DIR` 可覆盖 Runtime 根目录，供隔离测试与诊断。
 
-候选代码拟让每次查询持有 Runtime lease，整个 auth / usage 两阶段固定同一个 executable。
-候选调用命令分别为（分支已提交 usage 命令没有 `--product agent-plan`，查询范围差异待解决）：
+计划让每次查询持有 Runtime lease，整个 auth / usage 两阶段固定同一个 executable。
+调用须沿用当前分支的默认订阅发现方式，覆盖正式 Agent Plan / Coding Plan 范围；具体适配需实现后验收：
 
 ```text
 auth status --format json
-usage plan --product agent-plan --format json
+usage plan --format json
 ```
 
 计划的应用内登录由用户点击“登录方舟 / 重新登录 / 切换账号”触发：暂停新查询、取消在途查询、
@@ -61,22 +61,13 @@ thumbprint。任何活动查询、登录 lease 或 ArkCLI 子进程都会阻止�
 计划的日志只写 UTC 时间、严格版本与固定 Runtime 错误分类，不写命令 stdout/stderr、
 原始 auth JSON、用户身份、token、API Key 或 Authorization。
 
-候选构建与分发（计划 / 待验收；以下脚本、资产与专项测试依赖未提交工作区内容）：
+构建与分发为计划 / 待验收，尚未进入当前分支实现。当前 `build.ps1` 只构建应用、诊断工具与离线单测，不准备或打包 ArkCLI。后续需实现官方 bootstrap 准备、离线完整性与签名校验、双架构 Runtime 和第三方许可打包，以及隔离的 Runtime 专项验证入口；完成后再补充可执行命令。
 
-```powershell
-# 准备官方 bootstrap；分支已提交内容不包含这些资产与准备脚本
-.\prepare-bootstrap.ps1
-.\build.ps1 -OutputDir bin-release
-# 分发整个 bin-release，包含 runtime-bootstrap 和第三方许可
-.\bin-release\ark_left.exe --show
-# 隔离、离线的 Runtime 专项验证
-.\bin-release\ark_left-tests.exe --runtime
-```
+计划固定两个 bootstrap 的官方 SHA256；更新 bootstrap 时须同步版本与 digests，
+并重新验证 x64 / ARM64 分发文件。目标为普通构建不联网；缺任一 bootstrap、
+digest 不匹配或签名无效时应拒绝分发。
 
-候选代码将两个 bootstrap 的官方 SHA256 固定在 `ArkCliRuntimeConfig` 和准备脚本中；更新
-bootstrap 时同步版本与 digests，并重新验证 x64 / ARM64 分发文件。构建不会
-联网；缺任一 bootstrap、digest 不匹配或签名无效时应拒绝分发。
-
-未提交专项测试用例包含真实官方 x64 binary 的 digest / WinVerifyTrust / version / 无 PATH
-导入与损坏恢复，以及合成进程、Release、下载失败和激活回滚场景。真实浏览器
-SSO、全新 Windows 虚拟机、ARM64 执行、磁盘耗尽和人工多屏视觉需单独验收。用例存在不等于已经执行或通过，实际证据见 [verification.md](verification.md)。
+专项验证计划覆盖真实官方 x64 binary 的 digest / WinVerifyTrust / version / 无 PATH
+导入与损坏恢复，以及合成进程、Release、下载失败和激活回滚场景。Runtime 专项
+测试尚未进入当前分支实现；真实浏览器 SSO、全新 Windows 虚拟机、ARM64 执行、
+磁盘耗尽和人工多屏视觉需单独验收。实现后须记录实际结果，历史证据见 [verification.md](verification.md)。

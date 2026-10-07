@@ -2,13 +2,13 @@
 
 Windows 系统托盘常驻的火山方舟订阅额度查询插件。右下角悬浮圆圈显示剩余百分比，左键打开详情，右键打开设置；详情展示周期、剩余量（若有）和重置时间。
 
-分支已提交源码调用本机原生 ArkCLI，复用用户现有登录状态，不另存凭据；需要用户先安装 ArkCLI 并在终端登录。Managed Runtime、自带 bootstrap、应用内登录 / 账号切换、自动更新与回滚均为**计划 / 待验收**，工作区候选代码不代表当前已交付能力，状态与设计见 [Managed Runtime](docs/managed-runtime.md)。
+当前分支调用本机原生 ArkCLI，复用用户现有登录状态，不另存凭据；需要用户先安装 ArkCLI 并在终端登录。Managed Runtime、自带 bootstrap、应用内登录 / 账号切换、自动更新 / 回滚等均为**计划 / 待验收，尚未进入当前分支实现**，状态与设计见 [Managed Runtime](docs/managed-runtime.md)。
 
-已接受业务基线为 `v0.1`（R001–R004），交互层为 `v0.15 UX023`。该基线的自动检查已接受，T007 真实托盘、多屏 / DPI 和人工交互验收仍 pending。当前未提交的 Runtime 改动需单独验证；历史结果见 [验证摘要](docs/verification.md)，不能用于证明当前工作区已通过验收。
+已接受业务基线为 `v0.1`（R001–R004），交互层为 `v0.15 UX023`。该基线的自动检查已接受，T007 真实托盘、多屏 / DPI 和人工交互验收仍 pending。历史结果见 [验证摘要](docs/verification.md)，只证明对应历史版本；计划中的 Runtime 能力需在实现后单独验证。
 
 ## 构建与运行
 
-要求 Windows、.NET Framework 4.8。源码使用 C# 5 + WinForms，由系统 `csc.exe` 编译，无需 .NET SDK 或 NuGet。分支已提交构建不打包 Runtime；候选发布包包含 `runtime-bootstrap/` 和第三方许可的方案待验收。
+要求 Windows、.NET Framework 4.8。源码使用 C# 5 + WinForms，由系统 `csc.exe` 编译，无需 .NET SDK 或 NuGet。当前分支构建不打包 Runtime；包含 `runtime-bootstrap/` 和第三方许可的分发方案为计划 / 待验收，尚未进入当前分支实现。
 
 在项目根目录执行：
 
@@ -18,7 +18,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File build.ps1 -OutputDir D:/ark_
 
 双击 `start.cmd`，或运行 `bin-v15\ark_left.exe --show`。启动器按需构建，复用同版实例；替换项目旧实例时先验证目标，再请求正常退出。直接运行 exe 无参数时，首次显示圆圈，此后静默驻留；`--show` 强制显示圆圈。
 
-候选 Runtime 发布包的构建与分发计划见 [Managed Runtime](docs/managed-runtime.md)。未提交的 `build.ps1` 已增加 bootstrap 校验与打包步骤，尚待验证；当前运行进程和部署版本以实际检查为准。
+Runtime 构建与分发计划见 [Managed Runtime](docs/managed-runtime.md)；bootstrap 校验与打包为计划 / 待验收，尚未进入当前分支实现。运行进程和部署版本以实际检查为准。
 
 ## 验证命令
 
@@ -44,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests\verify-launcher.ps1 -O
 
 冒烟使用合成数据并输出窗口自绘预览，验证布局、缓存展示和生命周期。集成脚本使用隔离状态与实例名，仅操作自己启动的进程。自动检查与合成预览不能替代人工视觉、托盘手感和多屏验收。
 
-候选 Runtime 专项测试入口为 `bin-v15\ark_left-tests.exe --runtime`，不属于分支已提交测试入口，执行结果待验收。真实查询命令为 `powershell -NoProfile -ExecutionPolicy Bypass -File check.ps1`，会调用 ArkCLI 并输出脱敏摘要。
+Runtime 专项验证为计划 / 待验收，尚未进入当前分支实现。真实查询命令为 `powershell -NoProfile -ExecutionPolicy Bypass -File check.ps1`，会调用本机 ArkCLI 并输出脱敏摘要。
 
 `build.ps1` / `test.ps1` 未传 `-OutputDir` 时使用 `bin`，需要指定候选目录时请显式传入参数。
 
@@ -52,7 +52,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests\verify-launcher.ps1 -O
 
 - 圆圈左键或 Enter / Space 打开详情，所有打开路径只展示已有状态。无缓存时显示“暂无数据”。
 - 圆圈可拖动；锁定位置后仍可点击。位置只在本次运行有效；减少动画偏好跨启动记忆。
-- 分支已提交右键菜单提供设置（悬浮内容）、显示 / 隐藏和退出；应用内登录与诊断为计划 / 待验收。锁定、减少动画与归位入口的基线差异见 [差异与限制](docs/implementation-gaps.md)。
+- 当前分支右键菜单提供设置（悬浮内容）、显示 / 隐藏和退出；应用内登录与 Runtime 诊断为计划 / 待验收，尚未进入当前分支实现。锁定、减少动画与归位入口的基线差异见 [差异与限制](docs/implementation-gaps.md)。
 - 详情卡片右键或 `Ctrl+C` 复制当前额度摘要；`Ctrl+R` 手动刷新。等待期间保留展示、焦点和滚动，失败保留历史数据与原时间。
 - 启动后台查询一次；圆圈或详情可见时每 10 秒轮询，全隐藏时每 5 分钟轮询。同一时间只运行一次查询。
 - 关闭或 Esc 隐藏窗口，应用继续驻留；退出释放资源。Windows 可能将托盘图标收进折叠区。
@@ -69,10 +69,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests\verify-launcher.ps1 -O
 | --- | --- |
 | `ARK_LEFT_CLI` | 开发 / 诊断覆盖，须为存在的绝对 `.exe` 路径 |
 | `ARK_LEFT_STATE_DIR` | 隔离状态目录，包含 marker 与额度快照 |
-| `ARK_LEFT_RUNTIME_DIR` | 计划 / 待验收：候选 Runtime 目录，默认 `%LOCALAPPDATA%\ArkLeft`；分支已提交源码不使用 |
+| `ARK_LEFT_RUNTIME_DIR` | 计划 / 待验收，尚未进入当前分支实现：拟覆盖 Runtime 目录，默认 `%LOCALAPPDATA%\ArkLeft` |
 | `ARK_LEFT_INSTANCE_SUFFIX` | 测试用单实例名后缀，正常使用为空 |
 
-分支已提交 CLI 解析顺序为覆盖路径 → PATH / npm 原生 exe，查询使用 `usage plan --format json`。仅支持原生 `.exe`，不通过 PowerShell 托管 shim。插入 Managed Runtime 与显式 Agent Plan 过滤为候选代码变化，计划 / 待验收；Coding Plan 覆盖差异见 [差异与限制](docs/implementation-gaps.md)。
+当前分支 CLI 解析顺序为覆盖路径 → PATH / npm 原生 exe，查询使用 `usage plan --format json`。仅支持原生 `.exe`，不通过 PowerShell 托管 shim。Managed Runtime 为计划 / 待验收，尚未进入当前分支实现；计划中的查询范围约束与真实订阅验证边界见 [差异与限制](docs/implementation-gaps.md)。
 
 ## 文档导航与维护
 
