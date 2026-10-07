@@ -20,7 +20,7 @@
 | --- | --- | --- | --- |
 | Q-001 | 正式业务范围是 Agent Plan / Coding Plan 订阅额度，采用 `usage plan`；账户余额与资源包不在该基线内 | CLOSED | 用户 / 2026-10-03 / v0.1 |
 | Q-002 | 当前启动查询一次，可见 10 秒 / 隐藏 5 分钟轮询；开机启动未启用 | DECIDED | 主代理授权内 / 2026-10-03；UX011 / UX013 |
-| Q-003 | 原适配器使用 ArkCLI 默认发现订阅；该决定描述历史调用方式，当前 Runtime 的 Agent Plan 显式过滤见 managed-runtime.md | DECIDED（原记录） | 主代理技术决定 / 2026-10-03 / v0.1 |
+| Q-003 | 分支已提交适配器使用 ArkCLI 默认发现订阅；候选 Runtime 的 Agent Plan 显式过滤为计划 / 待验收，见 managed-runtime.md，不替代该决定 | DECIDED（原记录） | 主代理技术决定 / 2026-10-03 / v0.1 |
 | Q-004 | auth 与 usage 交叉校验 scope；缺关键字段为 Unknown，冲突清缓存；不展示原始身份。快照持久化遵循 Q-005 | DECIDED | 主代理依据真实脱敏 schema / 2026-10-03 / v0.2 |
 | Q-005 | 打开零查询、后台轮询、single-flight、等待保持展示；DPAPI 快照跨重启，原子失败保旧，只保存不可逆 scope 指纹。具体清留与格式见 contracts；轮询频率由 UX013 覆盖 | CLOSED | 用户给出交互意图，主代理确定工程值 / 2026-10-03 / v0.3 UX011 |
 | Q-006 | 圆圈展示用户选择的套餐 / 周期，首次默认首个已知有效百分比；全部未知时展示未知。设置记忆，不做聚合或轮播 | CLOSED | 用户右键设置意图，主代理确定默认 / 2026-10-03 / v0.4 UX012 |
@@ -29,4 +29,4 @@ Q-001 的范围由用户确认，真实查询提供接口证据；Q-005 / Q-006 
 
 ## 未提交实现变化
 
-Managed Runtime 的调用、登录、更新与回滚见 [managed-runtime.md](managed-runtime.md)；业务过滤与菜单差异见 [implementation-gaps.md](implementation-gaps.md)。这些实现说明不自动改变 Q-001 的正式业务范围，也不表示已完成交付验收。
+Managed Runtime 的调用、登录、更新与回滚计划 / 待验收方案见 [managed-runtime.md](managed-runtime.md)；业务过滤与菜单差异见 [implementation-gaps.md](implementation-gaps.md)。工作区候选代码不自动改变 Q-001 的正式业务范围，也不表示已完成交付验收。

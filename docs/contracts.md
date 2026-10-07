@@ -2,16 +2,16 @@
 
 上游解析契约 **v0.1**；额度快照格式 **1**；悬浮选择格式 **1**；悬浮偏好格式 **2**。当前交互以 [交互需求](requirements/interaction-improvements.md) 为准。格式、字段或间隔变化需同步提升对应契约版本。
 
-auth / usage 字段来自 2026-10-03–04 的真实脱敏查询；真实确认了 Agent Plan，其他套餐主要由合成用例覆盖。当前未提交 Runtime 的调用变化见 [差异与限制](implementation-gaps.md)，生命周期说明见 [managed-runtime.md](managed-runtime.md)。
+auth / usage 字段来自 2026-10-03–04 的真实脱敏查询；真实确认了 Agent Plan，其他套餐主要由合成用例覆盖。未提交候选 Runtime 的调用变化见 [差异与限制](implementation-gaps.md)，计划 / 待验收的生命周期方案见 [managed-runtime.md](managed-runtime.md)。
 
 ## 调用与进程
 
 - 认证闸门为 `auth status --format json`：退出码为 0 且顶层 `logged_in` 为布尔 `true` 才查询额度。`false` 为未登录；缺失或非布尔为格式错误；非零退出、启动失败、超时与取消分别处理。
-- 已接受业务查询为 `usage plan --format json`，默认发现订阅。当前源码调用 `usage plan --product agent-plan --format json`，此过滤尚未解决与业务范围的差异。
-- 仅调用原生 `.exe`，不托管 `.ps1` shim。当前解析顺序为存在的绝对 `ARK_LEFT_CLI` 路径 → Managed Runtime → PATH / npm 对应架构的原生 exe；无效覆盖明确失败。
+- 分支已提交业务查询为 `usage plan --format json`，默认发现订阅。候选代码调用 `usage plan --product agent-plan --format json`，此过滤为计划 / 待验收，尚未解决与业务范围的差异。
+- 仅调用原生 `.exe`，不托管 `.ps1` shim。分支已提交解析顺序为存在的绝对 `ARK_LEFT_CLI` 路径 → PATH / npm 对应架构的原生 exe；无效覆盖明确失败。候选代码插入 Managed Runtime，计划 / 待验收。
 - 子进程 `UseShellExecute=false`、`CreateNoWindow=true`、UTF8，异步读取 stdout / stderr，有界等待退出。普通查询每命令 30 秒超时；auth 与 usage 顺序执行，总耗时可能超过 60 秒。
-- 超时、取消或退出终止活动子进程；Dispose 后不再启动。非零退出不能当作成功。当前托管查询在 auth / usage 两阶段持有同一个 Runtime lease，不中途换 exe。
-- 用户触发登录使用 `auth login volc-sso`，10 分钟超时；这是未提交 Runtime 的新增接口，不是历史自动验收证据。
+- 超时、取消或退出终止活动子进程；Dispose 后不再启动。非零退出不能当作成功。候选托管查询在 auth / usage 两阶段持有同一个 Runtime lease，不中途换 exe，该流程待验收。
+- 分支已提交应用提供复制登录命令，由用户在终端登录；计划 / 待验收的应用内登录使用 `auth login volc-sso`，10 分钟超时。这是未提交候选 Runtime 的新增接口，不是历史自动验收证据。
 
 ## 身份与 scope
 

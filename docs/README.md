@@ -14,4 +14,4 @@
 | [`decisions.md`](decisions.md) | 有长期影响的重要决定 | 有具体决策疑点时 |
 | [`verification.md`](verification.md) | 有交付价值的验证证据 | 验收/发布时按需 |
 | [`setup.md`](setup.md) | 本机运行说明 | 运行/部署相关时 |
-| [`managed-runtime.md`](managed-runtime.md) | ArkCLI Runtime 的调用、登录、更新与回滚 | Runtime 相关时 |
+| [`managed-runtime.md`](managed-runtime.md) | ArkCLI Runtime 的调用、登录、更新与回滚计划 / 待验收方案 | Runtime 相关时 |
