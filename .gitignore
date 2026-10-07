@@ -1,12 +1,6 @@
 # build output
-bin/
-bin-v[0-9]*/
-bin-release/
-bin-validation/
-
-# stray generated files at repo root
-{const
-console.log('TS-LOAD-FAIL'
+/bin/
+/bin-*/
 
 # local editor / OS artifacts
 *.user

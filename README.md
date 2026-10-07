@@ -46,7 +46,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests\verify-launcher.ps1 -O
 
 Runtime 专项验证为计划 / 待验收，尚未进入当前分支实现。真实查询命令为 `powershell -NoProfile -ExecutionPolicy Bypass -File check.ps1`，会调用本机 ArkCLI 并输出脱敏摘要。
 
-`build.ps1` / `test.ps1` 未传 `-OutputDir` 时使用 `bin`，需要指定候选目录时请显式传入参数。
+`build.ps1` 未传 `-OutputDir` 时使用 `bin`，需要指定候选目录时请显式传入参数；`test.ps1` 运行 `bin` 中的测试程序。
+
+源码采用浅层职责目录：`src/App` 管理入口、托盘与 IPC，`src/UI` 放窗口、控件与布局，`src/Quota` 放额度模型、解析、查询与摘要，`src/State` 放身份、展示状态与持久化，`src/Runtime` 放 ArkCLI 运行组件。较大的窗口类通过同名 `partial` 文件拆分；命名空间保持 `ArkLeft`。
+
+`tests/QuotaTests.cs` 保留统一测试入口与共享断言，用例按同样的职责放入测试子目录。`build.ps1` 递归收集 `src` 和 `tests` 下所有 `.cs` 文件，新增源码和用例无需逐个登记。根目录 `bin/`、`bin-*/` 中的 exe、图标、预览和日志均为生成产物，不纳入版本控制；`runtime-bootstrap/` 和第三方许可保留为构建输入。
 
 ## 使用
 

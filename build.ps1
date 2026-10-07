@@ -84,14 +84,18 @@ $refs = @(
     'System.Web.Extensions.dll'
 )
 
-$srcFiles = Get-ChildItem -LiteralPath $src -Filter '*.cs' | ForEach-Object { $_.FullName }
+$appEntry = Join-Path $src 'App\Program.cs'
+$checkEntry = Join-Path $src 'App\Check.cs'
+$srcFiles = Get-ChildItem -LiteralPath $src -Filter '*.cs' -File -Recurse |
+    Sort-Object FullName | ForEach-Object { $_.FullName }
+$testFiles = Get-ChildItem -LiteralPath $test -Filter '*.cs' -File -Recurse |
+    Sort-Object FullName | ForEach-Object { $_.FullName }
 $commonFiles = @()
 $libraryFiles = @()
 foreach ($f in $srcFiles) {
-    $leaf = Split-Path $f -Leaf
-    if ($leaf -eq 'Check.cs') { continue }
+    if ($f -eq $checkEntry) { continue }
     $commonFiles += $f
-    if ($leaf -ne 'Program.cs') { $libraryFiles += $f }
+    if ($f -ne $appEntry) { $libraryFiles += $f }
 }
 
 # 1) Tray app (Windows subsystem)
@@ -110,7 +114,7 @@ $checkArgs = @('/nologo', '/target:exe', '/platform:anycpu', '/optimize+',
                '/main:ArkLeft.Check.Program',
                ('/out:' + (Join-Path $bin 'ark_left-check.exe')))
 foreach ($f in $libraryFiles) { $checkArgs += $f }
-$checkArgs += (Join-Path $src 'Check.cs')
+$checkArgs += $checkEntry
 $checkArgs += @('/reference:' + ($refs -join ','))
 Write-Host 'building ark_left-check.exe ...'
 & $csc @checkArgs
@@ -121,7 +125,7 @@ $testArgs = @('/nologo', '/target:exe', '/platform:anycpu', '/optimize+',
               '/main:ArkLeft.Tests.QuotaTests',
               ('/out:' + (Join-Path $bin 'ark_left-tests.exe')))
 foreach ($f in $libraryFiles) { $testArgs += $f }
-$testArgs += (Join-Path $test 'QuotaTests.cs')
+$testArgs += $testFiles
 $testArgs += @('/reference:' + ($refs -join ','))
 Write-Host 'building ark_left-tests.exe ...'
 & $csc @testArgs
@@ -129,3 +133,35 @@ if ($LASTEXITCODE -ne 0) { throw "csc failed building ark_left-tests.exe (exit $
 
 Write-Host 'build ok:'
 Get-ChildItem -LiteralPath $bin -Filter '*.exe' | ForEach-Object { Write-Host ("  " + $_.Name) }
+
+# Offline distribution includes both native architectures. Fetch once with
+# prepare-bootstrap.ps1; ordinary builds never require network access.
+$bootstrap = Join-Path $root 'runtime-bootstrap'
+if (Test-Path -LiteralPath $bootstrap -PathType Container) {
+    $expectedDigests = @{
+        amd64 = '86d640ffccafa3ca5562536f226a7aadfbb362566741c1ea7e3a6a536fb58c05'
+        arm64 = '975fc57ab3ec093060a1772c273b53090b0fc45a07207eef1763a27d5838e71e'
+    }
+    foreach ($architecture in @('amd64', 'arm64')) {
+        $bootstrapExe = Join-Path $bootstrap "$architecture\arkcli.exe"
+        if (-not (Test-Path -LiteralPath $bootstrapExe -PathType Leaf)) { throw "bootstrap missing: $architecture" }
+        if ((Get-FileHash -LiteralPath $bootstrapExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expectedDigests[$architecture]) {
+            throw "bootstrap integrity failed: $architecture"
+        }
+        if ((Get-AuthenticodeSignature -LiteralPath $bootstrapExe).Status -ne 'Valid') {
+            throw "bootstrap signature invalid: $architecture"
+        }
+    }
+    Copy-Item -LiteralPath $bootstrap -Destination $bin -Recurse -Force
+} else {
+    throw 'bootstrap assets missing; run prepare-bootstrap.ps1 before distribution'
+}
+foreach ($notice in @('THIRD-PARTY-NOTICES.md', 'third_party')) {
+    $noticePath = Join-Path $root $notice
+    if (Test-Path -LiteralPath $noticePath) { Copy-Item -LiteralPath $noticePath -Destination $bin -Recurse -Force }
+}
+$packagedDocs = Join-Path $bin 'docs'
+[System.IO.Directory]::CreateDirectory($packagedDocs) | Out-Null
+foreach ($guide in @('setup.md', 'managed-runtime.md')) {
+    Copy-Item -LiteralPath (Join-Path $root "docs\$guide") -Destination $packagedDocs -Force
+}
