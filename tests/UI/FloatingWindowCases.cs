@@ -571,6 +571,7 @@ namespace ArkLeft.Tests
 
         private static void FloatingAntialiasWindowCases()
         {
+            FloatingDpiTextCases();
             using (FloatingCircleControl circle = new FloatingCircleControl())
             {
                 circle.SetReduceMotion(true);
@@ -630,6 +631,49 @@ namespace ArkLeft.Tests
                     circle.Show();
                     circle.Refresh();
                 }
+            }
+        }
+
+        private static void FloatingDpiTextCases()
+        {
+            using (FloatingCircleControl circle = new FloatingCircleControl())
+            {
+                circle.SetReduceMotion(true);
+                foreach (double scale in new double[] { 1, 1.25, 1.5, 1.75, 2 })
+                {
+                    circle.ShowAt(Screen.PrimaryScreen.WorkingArea, scale);
+                    circle.SetDisplay(new FloatingDisplay { HasData = true,
+                        PercentKnown = true, Percent = 100, PercentText = "100%",
+                        AmountKnown = true, RemainingAmount = 50000 });
+                    using (Bitmap reference = circle.RenderFrameForTest(96f))
+                    {
+                        foreach (float dpi in new float[] { 96, 120, 144, 168, 192 })
+                        {
+                            string tag = "circle.dpiText." + scale + "." + dpi;
+                            using (Bitmap frame = circle.RenderFrameForTest(dpi))
+                            using (Graphics g = Graphics.FromImage(frame))
+                            {
+                                SizeF percent = circle.PercentTextSizeForTest(g);
+                                SizeF amount = g.MeasureString(circle.FittedAmountTextForTest, circle.AmountFontForTest);
+                                Check(tag + ".percentWidth", percent.Width < circle.Width - 2, true);
+                                Check(tag + ".percentHeight", percent.Height <= (circle.Height - 1) * 0.32f, true);
+                                Check(tag + ".fullAmount", circle.FittedAmountTextForTest, "50000 AFP");
+                                Check(tag + ".amountWidth", amount.Width <= circle.AmountBoundsForTest.Width - 2, true);
+                                Check(tag + ".amountHeight", amount.Height <= circle.AmountBoundsForTest.Height, true);
+                                bool identical = true;
+                                for (int y = 0; y < frame.Height && identical; y++)
+                                    for (int x = 0; x < frame.Width; x++)
+                                        if (frame.GetPixel(x, y) != reference.GetPixel(x, y))
+                                        { identical = false; break; }
+                                Check(tag + ".dpiIndependentPixels", identical, true);
+                                if (scale == 1.75 && dpi == 168)
+                                    frame.Save(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                                        "preview-circle-dpi-175.png"));
+                            }
+                        }
+                    }
+                }
+                circle.Hide();
             }
         }
 

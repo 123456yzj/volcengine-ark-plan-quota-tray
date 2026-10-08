@@ -2,6 +2,8 @@
 
 本指南以当前分支说明运行方法。额度交互基线为 v0.18.1 UX026，应用 v0.21 使用 [手动提交回调的直连登录与查询](direct-agent-plan.md)。
 
+v0.21.1 修复了高 DPI 下圆圈文字的重复缩放。使用 v0.21.0 时若 `100%` 只显示 `100` 或额度单位被截断，请先退出旧实例，再安装 v0.21.1 或后续版本。字体按物理像素缩放一次，文字测量与绘制使用同一绘图方式。
+
 ## 启动
 
 从 [GitHub Releases](https://github.com/123456yzj/volcengine-ark-plan-quota-tray/releases/latest) 下载 `ark_left-<版本>-windows-setup.exe`。安装需要 Windows 10 / 11 与 .NET Framework 4.8，默认目录为 `%LOCALAPPDATA%\Programs\ark_left`，无需管理员权限。开始菜单的 ark_left 入口总是显示悬浮圆圈；安装时可选创建桌面快捷方式。首次登录使用下方“设置 → 重新登录”流程。

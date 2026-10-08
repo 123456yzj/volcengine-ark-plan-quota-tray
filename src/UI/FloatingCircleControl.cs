@@ -225,10 +225,12 @@ namespace ArkLeft
             Font pf = null, cf = null;
             try
             {
-                pf = new Font("Microsoft YaHei UI", (float)(20.0 * scale), FontStyle.Bold,
-                    GraphicsUnit.Point);
-                cf = new Font("Microsoft YaHei UI", (float)(8.0 * scale), FontStyle.Regular,
-                    GraphicsUnit.Point);
+                // Bounds already use physical pixels. Point fonts would apply
+                // the drawing surface's DPI again after this explicit scale.
+                pf = new Font("Microsoft YaHei UI", (float)(20.0 * 96.0 / 72.0 * scale), FontStyle.Bold,
+                    GraphicsUnit.Pixel);
+                cf = new Font("Microsoft YaHei UI", (float)(8.0 * 96.0 / 72.0 * scale), FontStyle.Regular,
+                    GraphicsUnit.Pixel);
             }
             catch (Exception) { }
             Font oldP = _percentFont, oldC = _captionFont;
@@ -488,7 +490,17 @@ namespace ArkLeft
             return RenderFrame();
         }
 
+        internal Bitmap RenderFrameForTest(float dpi)
+        {
+            return RenderFrame(dpi);
+        }
+
         private Bitmap RenderFrame()
+        {
+            return RenderFrame(96f);
+        }
+
+        private Bitmap RenderFrame(float dpi)
         {
             // Supersample the silhouette as well as the water and text. The
             // inset keeps every partially covered pixel inside the native region.
@@ -496,6 +508,7 @@ namespace ArkLeft
             using (Bitmap surface = new Bitmap(Width * samples, Height * samples,
                 PixelFormat.Format32bppPArgb))
             {
+                surface.SetResolution(dpi, dpi);
                 using (Graphics g = Graphics.FromImage(surface))
                 using (GraphicsPath clip = new GraphicsPath())
                 {
@@ -506,6 +519,7 @@ namespace ArkLeft
                     PaintCircle(g);
                 }
                 Bitmap frame = new Bitmap(Width, Height, PixelFormat.Format32bppPArgb);
+                frame.SetResolution(dpi, dpi);
                 using (Graphics g = Graphics.FromImage(frame))
                 {
                     g.CompositingMode = CompositingMode.SourceCopy;
@@ -528,10 +542,45 @@ namespace ArkLeft
             }
         }
 
+        private RectangleF PercentBounds
+        {
+            get
+            {
+                float w = Width - 1, h = Height - 1;
+                return _hasData ? new RectangleF(0, h * 0.24f, w, h * 0.32f)
+                    : new RectangleF(0, 0, w, h);
+            }
+        }
+
+        private Font FitPercentFont(Graphics g)
+        {
+            SizeF measured = g.MeasureString(_percentText, _percentFont);
+            RectangleF bounds = PercentBounds;
+            float factor = Math.Min(1f, Math.Min((bounds.Width - 2) / measured.Width,
+                (bounds.Height - 1) / measured.Height));
+            return new Font(_percentFont.FontFamily, Math.Max(1f, _percentFont.Size * factor),
+                _percentFont.Style, GraphicsUnit.Pixel);
+        }
+
         private string FittedAmountText
         {
-            get { return PopupForm.FitAmountText(_amountText, _amountKnown
-                ? _amount : double.NaN, AmountBounds.Width, _captionFont, "AFP"); }
+            get
+            {
+                using (Bitmap bitmap = new Bitmap(1, 1))
+                {
+                    bitmap.SetResolution(96f, 96f);
+                    using (Graphics g = Graphics.FromImage(bitmap)) return FitCircleAmountText(g);
+                }
+            }
+        }
+
+        private string FitCircleAmountText(Graphics g)
+        {
+            // DrawString uses GDI+; measuring through TextRenderer (GDI on the
+            // desktop) can disagree with the bitmap surface on another machine.
+            if (g.MeasureString(_amountText, _captionFont).Width <= AmountBounds.Width - 2
+                || !_amountKnown) return _amountText;
+            return _amount.ToString("0.###E+0", CultureInfo.InvariantCulture) + " AFP";
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -588,16 +637,14 @@ namespace ArkLeft
             StringFormat center = new StringFormat();
             center.Alignment = StringAlignment.Center;
             center.LineAlignment = StringAlignment.Center;
+            center.FormatFlags = StringFormatFlags.NoWrap;
             using (SolidBrush white = new SolidBrush(UiStyle.CircleNumber))
-                g.DrawString(_percentText, _percentFont, white,
-                    _hasData ? new RectangleF(0, h * 0.24f, w, h * 0.32f)
-                        : new RectangleF(0, 0, w, h), center);
+            using (Font font = FitPercentFont(g))
+                g.DrawString(_percentText, font, white, PercentBounds, center);
             if (_amountText.Length > 0)
             {
-                center.FormatFlags = StringFormatFlags.NoWrap;
-                center.Trimming = StringTrimming.EllipsisCharacter;
                 using (SolidBrush caption = new SolidBrush(UiStyle.CircleCaption))
-                    g.DrawString(FittedAmountText, _captionFont, caption, AmountBounds, center);
+                    g.DrawString(FitCircleAmountText(g), _captionFont, caption, AmountBounds, center);
             }
             center.Dispose();
         }
@@ -664,6 +711,10 @@ namespace ArkLeft
         internal string FittedAmountTextForTest { get { return FittedAmountText; } }
         internal Rectangle AmountBoundsForTest { get { return AmountBounds; } }
         internal Font AmountFontForTest { get { return _captionFont; } }
+        internal SizeF PercentTextSizeForTest(Graphics g)
+        {
+            using (Font font = FitPercentFont(g)) return g.MeasureString(_percentText, font);
+        }
         internal string TooltipForTest { get { return AccessibleDescription; } }
         internal bool DraggingForTest { get { return _dragging; } }
 
