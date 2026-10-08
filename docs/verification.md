@@ -65,7 +65,7 @@
 Windows / .NET Framework C# 5 csc 验证：`build.ps1 -OutputDir bin-direct` 与交付目录 `bin-v16` 构建通过；隔离全量测试 **2437 项断言通过、0 失败**。现有 CLI / Runtime 回归测试保留，新增直连签名、PKCE/state、并发回调、DPAPI、续期/过期、失败重登录和 WinForms 登录后显示测试。
 
 - 正式 C# `ark_left-check.exe --login --refresh-session` 真实浏览器登录成功；首次 GetAFPUsage 成功，重新创建服务丢弃 STS 后，真实 refresh grant 成功并继续查询，`restart_refresh=Ok`、`scope_verdict=Same`。
-- 真实直连与 CLI 额度对照确认窗口及换算语义一致；个人档位与实际用量数值不公开。
+- 同次额度与 `arkcli usage plan --product agent-plan --format json` 对照，三窗口额度与换算百分比一致，daily 正常解析。公开记录仅保留验证结论，个人档位与实际用量数值已移除。
 - `ark_left-tests.exe --direct-live-ui` **5 项通过、0 失败**：真实续期后查询数据进入现有 WinForms 卡片，显示四窗口与个人订阅类型；检查了 `direct-live-preview.png`。该图为真实数据的 DrawToBitmap 控件预览，不是桌面截图。
 - `verify-interaction.ps1 -OutputDir bin-v16` 通过；`verify-launcher.ps1 -OutputDir bin-v16` 通过。旧版夹具来自 Git 基线的隔离构建；测试只操作自身 PID/实例名。新版无直连会话时明确 NotLoggedIn，按认证契约清除旧额度缓存；标记与选择/偏好保持。旧“缓存必须保留”断言已按认证契约更新。
 - 自然时间下完整 STS 到期等待、真实账号 A→B、真人拒绝授权和服务端签名/权限故障未在本轮人为构造。到期前 2 分钟、过期后续期、并发单次刷新和刷新失败重新登录由时间推进与失败注入测试覆盖；真实 refresh 接口已验证。

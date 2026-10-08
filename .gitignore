@@ -8,3 +8,16 @@
 *.suo
 Thumbs.db
 desktop.ini
+
+# local credentials, session state and ad-hoc login diagnostics
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+direct-session.dat
+quota-cache.dat
+profile.yaml
+credentials.json
+/tests/get_afp_usage_poc.py
+/tests/volc_sso_getafpusage_runner.py
