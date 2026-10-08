@@ -76,12 +76,12 @@ namespace ArkLeft
             set { _allowClose = value; }
         }
 
-        private static readonly Color CardBorder = UiStyle.Border;
-        private static readonly Color ContentBg = UiStyle.Canvas;
-        private static readonly Color TextDark = UiStyle.Navy;
-        private static readonly Color TextMuted = UiStyle.Muted;
-        internal static readonly Color WarningColor = UiStyle.Warning;
-        private static readonly Color ErrorColor = UiStyle.Error;
+        private static Color CardBorder { get { return UiStyle.Border; } }
+        private static Color ContentBg { get { return UiStyle.Canvas; } }
+        private static Color TextDark { get { return UiStyle.Navy; } }
+        private static Color TextMuted { get { return UiStyle.Muted; } }
+        internal static Color WarningColor { get { return UiStyle.Warning; } }
+        private static Color ErrorColor { get { return UiStyle.Error; } }
 
         public PopupForm()
         {
@@ -89,8 +89,7 @@ namespace ArkLeft
             ShowInTaskbar = false;
             TopMost = true;
             StartPosition = FormStartPosition.Manual;
-            BackColor = ContentBg;
-            KeyPreview = true;
+            BackColor = ContentBg;            KeyPreview = true;
             AutoScaleMode = AutoScaleMode.None;
             // Reserve one physical pixel for the restrained outer frame.
             Padding = new Padding(1);

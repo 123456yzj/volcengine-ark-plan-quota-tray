@@ -13,6 +13,21 @@ namespace ArkLeft
                 SetReduceMotion(card, reduce);
         }
 
+        // v0.24 UX029: re-derive the details surface after a theme change. The
+        // cards bake palette colors at build time, so the view is rebuilt with
+        // the CURRENT snapshot; the outer frame / content background and the
+        // details-local menu are restyled too. Zero query; the same snapshot is
+        // kept (a null view stays on the empty/message shape).
+        public void ApplyTheme()
+        {
+            BackColor = ContentBg;
+            if (_content != null) _content.BackColor = ContentBg;
+            if (_detailsMenu != null) UiStyle.StyleMenu(_detailsMenu);
+            _displayKey = null; // force a real rebuild with the new palette
+            if (_view != null) ApplyModelView(_view);
+            else Invalidate(true);
+        }
+
         private void SetMotionAllowed(bool allowed)
         {
             foreach (Control card in _content.Controls)

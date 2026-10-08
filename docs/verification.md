@@ -1,5 +1,13 @@
 # 验证与验收
 
+## v0.24.0 主题色设置（2026-10-08）
+
+- 新增主题强调色预设与深色内容面：`Theme.cs` 色板模型、`UiStyle` 动态色板门面与 `Apply`、设置弹窗主题区域（实时预览 + 保存提交 + 取消回滚）、偏好格式 3 与旧格式内存迁移。默认主题（索引 0 + 浅色）与历史常量逐字节一致，既有像素断言不变。
+- 隔离全量测试 **2966 / 0**（上版 2897，含新增 UX029 用例；`bin-release` 载入已校验 bootstrap 后运行）。`build.ps1 -OutputDir bin-release` 通过；`prepare-bootstrap.ps1` 校验两架构官方 ArkCLI 摘要与签名通过。
+- 专项入口 `--theme` **302 / 0**；受影响既有套件 `--menu-interaction`、`--compact-ui`、`--effective-quota`、`--floating-amount`、`--floating-antialias` 全通过。UX015 短内容滚动与 Tab 序断言随新增主题控件更新为新基线。
+- `package.ps1` 生成候选安装包；`verify-installer.ps1` 通过静默安装、payload、注册与开始菜单、安装后启动 / 隐藏 / 单实例，以及旧随包组件清理与用户状态保留、卸载。加入发布说明后重新打包，源码未变化，复用 **2966 / 0** 全量结果；最终包安装验收再次通过，本轮候选与最终包合计 **2 次**。安装包约 2.10 MB，SHA-256：`885a0e6ee789ae230c011c8b79214445f69dc91a83e7df3472b4b1798adb4918`。
+- 本轮未执行真人浏览器授权、全新 Windows、多屏、读屏或 ARM64 原生人工验收；合成 WinForms 测试不替代真人视觉验收。安装包尚未代码签名。
+
 ## v0.23.0 轻量安装包（2026-10-08）
 
 - 移除随包两架构 ArkCLI、生产托盘 Runtime 管理器 / 维护计时器和组件诊断入口。当前构建不依赖 bootstrap，旧 CLI / Runtime 兼容代码继续参与开发回归。

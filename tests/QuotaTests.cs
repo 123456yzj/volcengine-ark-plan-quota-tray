@@ -75,6 +75,17 @@ namespace ArkLeft.Tests
                     foreach (string failure in _failures) Console.WriteLine(failure);
                     return _failed == 0 ? 0 : 1;
                 }
+                if (args.Length == 1 && args[0] == "--theme")
+                {
+                    FloatingPreferencesUX016Cases();
+                    FloatingPreferencesUX017Cases();
+                    FloatingSettingsDialogCases();
+                    FloatingMenuUX023Cases();
+                    ThemeUX029Cases();
+                    Console.WriteLine("theme: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
                 if (args.Length == 1 && args[0] == "--floating-antialias")
                 {
                     FloatingAntialiasCases();
@@ -185,6 +196,7 @@ namespace ArkLeft.Tests
             DetailsShortcutUX021Cases();
             CardOnlyUX022Cases();
             FloatingMenuUX023Cases();
+            ThemeUX029Cases();
 
             Console.WriteLine();
             Console.WriteLine("passed: " + _passed + ", failed: " + _failed);

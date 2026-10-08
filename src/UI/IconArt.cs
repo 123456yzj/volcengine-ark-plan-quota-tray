@@ -58,7 +58,7 @@ namespace ArkLeft
                                    cx - bodyW * 0.55f, top + bodyH * 1.05f);
                     drop.AddArc(cx - bodyW * 0.55f, top + bodyH * 0.62f, bodyW * 1.10f, bodyH * 0.90f, 150f, 240f);
                     drop.CloseFigure();
-                    using (SolidBrush white = new SolidBrush(Color.White))
+                    using (SolidBrush white = new SolidBrush(UiStyle.OnAccent))
                         g.FillPath(white, drop);
                 }
             }

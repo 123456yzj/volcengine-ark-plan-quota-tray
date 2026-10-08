@@ -1,6 +1,6 @@
 # 数据与接口契约
 
-上游解析契约 **v0.2**；额度快照格式 **1**；悬浮选择格式 **1**；悬浮偏好格式 **2**。Agent Plan 个人版生产链路以 [直连契约](direct-agent-plan.md) 为准；下述 CLI auth/viewer 和 items 解析保留为兼容契约。当前交互以 [交互需求](requirements/interaction-improvements.md) 为准。
+上游解析契约 **v0.2**；额度快照格式 **1**；悬浮选择格式 **1**；悬浮偏好格式 **3**。Agent Plan 个人版生产链路以 [直连契约](direct-agent-plan.md) 为准；下述 CLI auth/viewer 和 items 解析保留为兼容契约。当前交互以 [交互需求](requirements/interaction-improvements.md) 为准。
 
 CLI auth / usage 字段来自 2026-10-03–04 的真实脱敏查询；GetAFPUsage 字段与 SSO / refresh grant 于 2026-10-07 真实验证。其他套餐主要由合成用例覆盖；其验收边界见 [implementation-gaps.md](implementation-gaps.md)，保留的 Runtime 生命周期方案见 [managed-runtime.md](managed-runtime.md)。
 
@@ -97,11 +97,11 @@ ProductKey 用 `Product + "|" + Edition + "|" + Tier`，缺失段为空；只存
 
 Version 必须为整数 1；key / label 必须为非空字符串，长度分别不超过 128 / 64。缺字段、多字段、未知字段、错误类型、损坏或错误版本一律按未配置处理，不造假选择。只有显式用户保存写盘；临时文件 + Replace / Move，失败保旧，不应用失败的保存。
 
-## 悬浮偏好格式 2
+## 悬浮偏好格式 3
 
-同一 state dir 下明文 `floating-preferences.json`，恰有 `Version`（int = 2）、`PositionLocked`（bool）、`ReduceMotion`（bool）。只存两个偏好，不含身份、额度或坐标；读取前检查文件大小不超过 **4096 字节**。
+同一 state dir 下明文 `floating-preferences.json`，恰有 `Version`（int = 3）、`PositionLocked`（bool）、`ReduceMotion`（bool）、`AccentIndex`（int）、`DarkMode`（bool）。只存这些偏好，不含身份、额度或坐标；读取前检查文件大小不超过 **4096 字节**。`AccentIndex` 越界按 0（默认蓝）处理，`ThemeCatalog` 顺序固定不可重排。
 
-严格格式 1（恰为 Version=1 与 PositionLocked 两字段）只读迁移为内存格式 2，ReduceMotion=false；加载不写盘，后续显式保存写格式 2，同时携带两个 flag。同值不写盘；损坏、多字段、类型 / 版本不符或超限回默认。原子写失败保留旧文件与全部旧偏好，提示对应字段失败。
+严格格式 2（恰为 Version=2 与 PositionLocked、ReduceMotion 三字段）与严格格式 1（恰为 Version=1 与 PositionLocked 两字段）只读迁移为内存格式 3，缺失项取默认（ReduceMotion=false、AccentIndex=0、DarkMode=false）；加载不写盘，后续显式保存写格式 3，同时携带全部 flag。同值不写盘；损坏、多字段、类型 / 版本不符或超限回默认。原子写失败保留旧文件与全部旧偏好，提示对应字段失败。
 
 ## 窗口、复制与轮询
 

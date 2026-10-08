@@ -14,7 +14,7 @@ namespace ArkLeft
             CardPanel card = new CardPanel();
             card.PadX = S(16);
             StyleCard(card, S(8));
-            card.BackColor = Color.White;
+            card.BackColor = UiStyle.Surface;
             // UX022: re-attach the compact status row after every reflow.
             card.AfterLayout = delegate { SyncStatusInPlace(); };
             card.Paint += delegate(object s, PaintEventArgs e) { DrawCardBorder(e, (Control)s); };
@@ -35,7 +35,7 @@ namespace ArkLeft
                 close.TabStop = true;
                 close.FlatStyle = FlatStyle.Flat;
                 close.FlatAppearance.BorderSize = 0;
-                close.BackColor = Color.White;
+                close.BackColor = UiStyle.Surface;
                 close.ForeColor = UiStyle.Teal;
                 close.FlatAppearance.MouseOverBackColor = UiStyle.TealLight;
                 close.FlatAppearance.MouseDownBackColor = UiStyle.Selected;
@@ -62,7 +62,7 @@ namespace ArkLeft
             CardPanel card = new CardPanel();
             card.PadX = S(12);
             StyleCard(card, S(8));
-            card.BackColor = Color.White;
+            card.BackColor = UiStyle.Surface;
             // UX022: re-attach the compact status row after every reflow.
             card.AfterLayout = delegate { SyncStatusInPlace(); };
             card.Paint += delegate(object s, PaintEventArgs e) { DrawCardBorder(e, (Control)s); };
@@ -93,7 +93,7 @@ namespace ArkLeft
             CardPanel card = new CardPanel();
             card.PadX = S(12);
             StyleCard(card, S(12));
-            card.BackColor = Color.White;
+            card.BackColor = UiStyle.Surface;
             // UX022: re-attach the compact status row after every reflow.
             card.AfterLayout = delegate { SyncStatusInPlace(); };
             card.Paint += delegate(object s, PaintEventArgs e) { DrawCardBorder(e, (Control)s); };
@@ -161,7 +161,7 @@ namespace ArkLeft
             CardPanel card = new CardPanel();
             card.PadX = S(10);
             StyleCard(card, S(8));
-            card.BackColor = Color.White;
+            card.BackColor = UiStyle.Surface;
             // UX022: re-attach the compact status row after every reflow.
             card.AfterLayout = delegate { SyncStatusInPlace(); };
             card.Paint += delegate(object s, PaintEventArgs e) { DrawCardBorder(e, (Control)s); };

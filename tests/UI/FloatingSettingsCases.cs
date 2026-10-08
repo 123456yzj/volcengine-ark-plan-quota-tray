@@ -329,8 +329,10 @@ namespace ArkLeft.Tests
                     dlg.ClientRectangle.Contains(dlg.SaveButtonForTest.Bounds), true);
                 Check("ux015.shortCancelInside",
                     dlg.ClientRectangle.Contains(dlg.CancelButtonForTest.Bounds), true);
+                // UX029: the theme row is now the bottom-most content, so it is
+                // the honest proxy for "content exceeds the scroll host".
                 Check("ux015.shortContentScrolls",
-                    dlg.ErrorLabelForTest.Bottom > dlg.HostForTest.Height, true);
+                    dlg.ThemeRowForTest.Bottom > dlg.HostForTest.Height, true);
             }
 
             // ---- long candidate text: full tooltip follows the selection and
@@ -394,18 +396,22 @@ namespace ArkLeft.Tests
                 List<System.Windows.Forms.Control> seq =
                     new List<System.Windows.Forms.Control>();
                 System.Windows.Forms.Control c = dlg.ActiveControl;
-                for (int k = 0; k < 3; k++)
+                for (int k = 0; k < 5; k++)
                 {
                     dlg.SelectNextControl(c, true, true, true, true);
                     c = dlg.ActiveControl;
                     seq.Add(c);
                 }
-                Check("ux015.tabSeq.save", seq.Count == 3
-                    && seq[0] == dlg.SaveButtonForTest, true);
-                Check("ux015.tabSeq.cancel", seq.Count == 3
-                    && seq[1] == dlg.CancelButtonForTest, true);
-                Check("ux015.tabSeq.close", seq.Count == 3
-                    && seq[2] == dlg.CloseButtonForTest, true);
+                Check("ux015.tabSeq.accent", seq.Count == 5
+                    && seq[0] == dlg.AccentComboForTest, true);
+                Check("ux015.tabSeq.dark", seq.Count == 5
+                    && seq[1] == dlg.DarkCheckForTest, true);
+                Check("ux015.tabSeq.save", seq.Count == 5
+                    && seq[2] == dlg.SaveButtonForTest, true);
+                Check("ux015.tabSeq.cancel", seq.Count == 5
+                    && seq[3] == dlg.CancelButtonForTest, true);
+                Check("ux015.tabSeq.close", seq.Count == 5
+                    && seq[4] == dlg.CloseButtonForTest, true);
                 Check("ux015.hintReachable",
                     dlg.HostForTest.DisplayRectangle.Contains(dlg.HintForTest.Bounds),
                     true);

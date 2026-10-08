@@ -41,6 +41,19 @@ namespace ArkLeft
         private bool _dragging;
         private Point _dragStart;
         private Point _formStart;
+        // v0.24 UX029: theme section (accent preset + dark mode). Changes are
+        // PREVIEWED live so the user sees the effect, committed on 保存 and
+        // reverted on 取消 / Esc.
+        private ModernComboBox _accentCombo;
+        private CheckBox _darkCheck;
+        private Label _themeLabel;
+        private Action<int, bool> _themePreview;
+        private Func<int, bool, bool> _themeSave;
+        private int _themeAccent;
+        private bool _themeDark;
+        private int _initialAccent;
+        private bool _initialDark;
+        private bool _themeCommitted;
 
         public FloatingSettings ResultSettings;
 
@@ -51,7 +64,8 @@ namespace ArkLeft
             // the dialog directly). The production open path passes the OWNER
             // screen's scale and work area via the explicit overload below.
             Screen scr = Screen.PrimaryScreen ?? Screen.AllScreens[0];
-            Init(candidates, current, save, DpiUtil.GetScale(scr), scr.WorkingArea);
+            Init(candidates, current, save, DpiUtil.GetScale(scr), scr.WorkingArea,
+                null, null, 0, false);
         }
 
         // UX015 test / multi-screen seam: explicit DPI scale and work area so
@@ -61,16 +75,38 @@ namespace ArkLeft
             FloatingSettings current, Func<FloatingSettings, bool> save,
             double scale, Rectangle workArea)
         {
-            Init(candidates, current, save, scale, workArea);
+            Init(candidates, current, save, scale, workArea, null, null, 0, false);
+        }
+
+        // v0.24 UX029: theme-aware construction. themePreview paints the chosen
+        // accent / mode live (never persisted); themeSave persists on 保存 and
+        // returns false on failure (the dialog stays open). accentIndex /
+        // darkMode are the CURRENT values used to preselect the controls.
+        internal FloatingSettingsForm(List<FloatingEntry> candidates,
+            FloatingSettings current, Func<FloatingSettings, bool> save,
+            double scale, Rectangle workArea,
+            Action<int, bool> themePreview, Func<int, bool, bool> themeSave,
+            int accentIndex, bool darkMode)
+        {
+            Init(candidates, current, save, scale, workArea,
+                themePreview, themeSave, accentIndex, darkMode);
         }
 
         private void Init(List<FloatingEntry> candidates,
             FloatingSettings current, Func<FloatingSettings, bool> save,
-            double scale, Rectangle workArea)
+            double scale, Rectangle workArea,
+            Action<int, bool> themePreview, Func<int, bool, bool> themeSave,
+            int accentIndex, bool darkMode)
         {
             _save = save;
             _scale = scale;
             _workArea = workArea;
+            _themePreview = themePreview;
+            _themeSave = themeSave;
+            _themeAccent = ThemeCatalog.Normalize(accentIndex);
+            _themeDark = darkMode;
+            _initialAccent = _themeAccent;
+            _initialDark = _themeDark;
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             TopMost = true;
@@ -84,29 +120,30 @@ namespace ArkLeft
             // consistently with the shared menu's submenu label.
             Text = "悬浮内容";
             AccessibleName = "悬浮内容";
-            BackColor = Color.White;
+            BackColor = UiStyle.Surface;
             KeyPreview = true;
 
             // UX015/T042: physical margins first (scale-independent), then an
-            // EFFECTIVE LAYOUT SCALE. The desired 430x208 logical layout keeps
-            // the owner-screen DPI as long as a usable minimum layout (240x132
-            // logical: header + chooser + reachable content + two 84dp
-            // buttons) fits the work area; on tiny work areas the WHOLE layout
-            // — fonts included — scales down (bounded below at 50%) instead of
-            // overlapping, and the middle content scrolls instead of hiding
-            // the save / cancel row. An extremely small work area can never
-            // demand infinite pixels.
+            // EFFECTIVE LAYOUT SCALE. The desired 430x296 logical layout
+            // (target chooser + inline error + UX029 theme section) keeps the
+            // owner-screen DPI as long as a usable minimum layout (240x224
+            // logical: header + chooser + reachable content + theme row + two
+            // 84dp buttons) fits the work area; on tiny work areas the WHOLE
+            // layout — fonts included — scales down (bounded below at 50%)
+            // instead of overlapping, and the middle content scrolls instead of
+            // hiding the save / cancel row. An extremely small work area can
+            // never demand infinite pixels.
             int marginX = Math.Max(4, Math.Min(32, _workArea.Width / 20));
             int marginY = Math.Max(4, Math.Min(32, _workArea.Height / 20));
             int availW = Math.Max(60, _workArea.Width - marginX * 2);
             int availH = Math.Max(60, _workArea.Height - marginY * 2);
-            double les = Math.Min(_scale, Math.Min(availW / 240.0, availH / 132.0));
+            double les = Math.Min(_scale, Math.Min(availW / 240.0, availH / 224.0));
             _scale = Math.Max(0.5, les);
             ClientSize = new Size(Math.Min(S(430), availW),
-                Math.Min(S(208), availH));
+                Math.Min(S(296), availH));
 
             Panel header = new Panel();
-            header.BackColor = Color.White;
+            header.BackColor = UiStyle.Surface;
             _headerPanel = header;
             header.Paint += delegate(object sender, PaintEventArgs e)
             {
@@ -136,7 +173,7 @@ namespace ArkLeft
             closeBtn.Font = F(14f, false);
             closeBtn.FlatStyle = FlatStyle.Flat;
             closeBtn.FlatAppearance.BorderSize = 0;
-            closeBtn.BackColor = Color.White;
+            closeBtn.BackColor = UiStyle.Surface;
             closeBtn.ForeColor = UiStyle.Navy;
             closeBtn.FlatAppearance.MouseOverBackColor = UiStyle.TealLight;
             closeBtn.FlatAppearance.MouseDownBackColor = UiStyle.Selected;
@@ -149,7 +186,7 @@ namespace ArkLeft
             // UX015: scrollable middle host — the header and the save / cancel
             // row stay fixed so a short work area can never hide the buttons.
             Panel host = new Panel();
-            host.BackColor = Color.White;
+            host.BackColor = UiStyle.Surface;
             host.AutoScroll = true;
             _contentHost = host;
             Controls.Add(host);
@@ -167,7 +204,7 @@ namespace ArkLeft
             _combo.AccessibleName = "显示目标";
             _combo.Font = F(9f, false);
             _combo.ForeColor = UiStyle.Navy;
-            _combo.BackColor = Color.White;
+            _combo.BackColor = UiStyle.Surface;
             // Long product (edition / tier) + period + state strings must remain
             // readable in the dropped list; the dropdown width is MEASURED from
             // the widest item below and clamped to the owner work area. Native
@@ -206,6 +243,43 @@ namespace ArkLeft
             _error.Font = F(8.25f, false);
             host.Controls.Add(_error);
 
+            // v0.24 UX029: theme section. The accent presets and the dark-mode
+            // toggle PREVIEW live (themePreview) so the effect is visible while
+            // choosing; the choice is persisted only on 保存 (themeSave) and
+            // reverted on 取消 / Esc / window close.
+            Label themeLabel = new Label();
+            themeLabel.Text = "主题色：";
+            themeLabel.Font = F(9f, false);
+            themeLabel.AutoSize = false;
+            themeLabel.ForeColor = UiStyle.Navy;
+            _themeLabel = themeLabel;
+            host.Controls.Add(themeLabel);
+
+            _accentCombo = new ModernComboBox();
+            _accentCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            _accentCombo.AccessibleName = "主题强调色";
+            _accentCombo.Font = F(9f, false);
+            _accentCombo.ForeColor = UiStyle.Navy;
+            _accentCombo.BackColor = UiStyle.Surface;
+            for (int i = 0; i < ThemeCatalog.Count; i++)
+                _accentCombo.Items.Add(ThemeCatalog.Name(i));
+            _accentCombo.SelectedIndex = _themeAccent;
+            _accentCombo.SelectedIndexChanged += delegate { OnThemeChanged(); };
+            host.Controls.Add(_accentCombo);
+
+            CheckBox darkCheck = new CheckBox();
+            darkCheck.Text = "深色内容面";
+            darkCheck.AccessibleName = "深色模式";
+            darkCheck.AutoSize = false;
+            darkCheck.Font = F(9f, false);
+            darkCheck.ForeColor = UiStyle.Navy;
+            darkCheck.BackColor = UiStyle.Surface;
+            darkCheck.FlatStyle = FlatStyle.Flat;
+            darkCheck.Checked = _themeDark;
+            darkCheck.CheckedChanged += delegate { OnThemeChanged(); };
+            _darkCheck = darkCheck;
+            host.Controls.Add(darkCheck);
+
             Button saveBtn = new ModernButton();
             saveBtn.Text = "保存";
             saveBtn.AccessibleName = "保存显示目标";
@@ -237,6 +311,8 @@ namespace ArkLeft
             // not a tab stop.
             _contentHost.TabIndex = 0;
             _combo.TabIndex = 0;
+            _accentCombo.TabIndex = 1;
+            _darkCheck.TabIndex = 2;
             saveBtn.TabIndex = 1;
             cancelBtn.TabIndex = 2;
             header.TabIndex = 3;
@@ -320,6 +396,11 @@ namespace ArkLeft
             _hint.SetBounds(S(20), S(16), contentW, S(22));
             _combo.SetBounds(S(20), S(44), contentW, S(28));
             _error.SetBounds(S(20), S(78), contentW, S(36));
+            // UX029: theme row sits below the target chooser / error line.
+            _themeLabel.SetBounds(S(20), S(122), S(64), S(24));
+            int accentW = Math.Min(S(150), Math.Max(S(60), contentW - S(70)));
+            _accentCombo.SetBounds(S(20) + S(64), S(120), Math.Max(S(60), accentW), S(28));
+            _darkCheck.SetBounds(S(20), S(154), contentW, S(24));
             // UX015/T042: 84dp buttons normally, narrowed only if the client
             // width cannot hold the pair at the effective scale — the two
             // buttons never overlap and never leave the window.
@@ -425,9 +506,47 @@ namespace ArkLeft
                 SetError("保存失败，未能记住本次选择。");
                 return;
             }
+            // UX029: persist the theme selection too. Failure keeps the dialog
+            // open, reverts the live preview and reports it inline so the user
+            // never leaves believing the theme was remembered.
+            if (_themeSave != null && !_themeSave(_themeAccent, _themeDark))
+            {
+                RevertThemePreview();
+                SetError("主题设置保存失败，未能记住本次选择。");
+                return;
+            }
+            _themeCommitted = true;
             ResultSettings = s;
             DialogResult = DialogResult.OK;
             Close();
+        }
+
+        // UX029: a live preview of the chosen accent / mode; persistence only
+        // happens on 保存.
+        private void OnThemeChanged()
+        {
+            _themeAccent = _accentCombo == null ? _themeAccent
+                : ThemeCatalog.Normalize(_accentCombo.SelectedIndex);
+            _themeDark = _darkCheck != null && _darkCheck.Checked;
+            if (_themePreview != null)
+            {
+                try { _themePreview(_themeAccent, _themeDark); } catch (Exception) { }
+            }
+        }
+
+        private void RevertThemePreview()
+        {
+            if (_themeCommitted) return;
+            if (_themePreview == null) return;
+            try { _themePreview(_initialAccent, _initialDark); } catch (Exception) { }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            // UX029: a cancel / window-close that is not a committed save must
+            // undo the live preview so no unconfirmed theme leaks into the UI.
+            if (DialogResult != DialogResult.OK) RevertThemePreview();
+            base.OnFormClosing(e);
         }
 
         // ---- test hooks ----
@@ -468,6 +587,21 @@ namespace ArkLeft
             get { return _tip == null || _combo == null ? null : _tip.GetToolTip(_combo); }
         }
         internal int DropDownWidthForTest { get { return _combo == null ? 0 : _combo.DropDownWidth; } }
+        // UX029 theme hooks.
+        internal ComboBox AccentComboForTest { get { return _accentCombo; } }
+        internal CheckBox DarkCheckForTest { get { return _darkCheck; } }
+        internal System.Windows.Forms.Control ThemeRowForTest { get { return _darkCheck; } }
+        internal int ThemeAccentForTest { get { return _themeAccent; } }
+        internal bool ThemeDarkForTest { get { return _themeDark; } }
+        internal void SelectAccentForTest(int i)
+        {
+            if (_accentCombo != null && i >= 0 && i < _accentCombo.Items.Count)
+                _accentCombo.SelectedIndex = i;
+        }
+        internal void SetDarkForTest(bool on)
+        {
+            if (_darkCheck != null) _darkCheck.Checked = on;
+        }
     }
 
 }

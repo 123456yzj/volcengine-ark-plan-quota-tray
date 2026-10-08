@@ -135,7 +135,7 @@ namespace ArkLeft
             // compact circle stays square at 100% DPI.
             MinimumSize = new Size(1, 1);
             KeyPreview = true;
-            BackColor = Color.White;
+            BackColor = UiStyle.Surface;
             DoubleBuffered = true;
             Text = "方舟剩余额度";
             AccessibleName = "方舟剩余额度悬浮圆圈";
@@ -608,7 +608,7 @@ namespace ArkLeft
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
             g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-            using (SolidBrush background = new SolidBrush(Color.White))
+            using (SolidBrush background = new SolidBrush(UiStyle.CircleBackground))
                 g.FillRectangle(background, 0, 0, Width, Height);
 
             float w = Width - 1, h = Height - 1;

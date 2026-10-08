@@ -275,61 +275,94 @@ namespace ArkLeft.Tests
             {
                 Environment.SetEnvironmentVariable(Marker.StateDirEnv, dir);
 
-                // Format 2 round-trip keeps both flags.
+                // Format 3 round-trip keeps every field (lock + motion + theme).
                 FloatingPreferences p = new FloatingPreferences();
                 p.Version = FloatingPreferencesStore.FormatVersion;
                 p.PositionLocked = true;
                 p.ReduceMotion = true;
+                p.AccentIndex = 4;
+                p.DarkMode = true;
                 Check("prefs2.save", FloatingPreferencesStore.Save(p), true);
                 FloatingPreferences back = FloatingPreferencesStore.Load();
-                Check("prefs2.version", back.Version, 2);
+                Check("prefs2.version", back.Version, 3);
                 Check("prefs2.locked", back.PositionLocked, true);
                 Check("prefs2.reduceMotion", back.ReduceMotion, true);
+                Check("prefs2.accent", back.AccentIndex, 4);
+                Check("prefs2.dark", back.DarkMode, true);
                 string raw = System.IO.File.ReadAllText(FloatingPreferencesStore.FilePath,
                     System.Text.Encoding.UTF8);
-                Check("prefs2.rawFormat2",
-                    raw.Contains("\"Version\":2") && raw.Contains("\"PositionLocked\"")
-                    && raw.Contains("\"ReduceMotion\""), true);
+                Check("prefs2.rawFormat3",
+                    raw.Contains("\"Version\":3") && raw.Contains("\"PositionLocked\"")
+                    && raw.Contains("\"ReduceMotion\"") && raw.Contains("\"AccentIndex\"")
+                    && raw.Contains("\"DarkMode\""), true);
 
-                // A later lock-only change still carries the other flag.
+                // A later lock-only change still carries the other flags.
                 FloatingPreferences lockOnly = new FloatingPreferences();
                 lockOnly.Version = FloatingPreferencesStore.FormatVersion;
                 lockOnly.PositionLocked = false;
                 lockOnly.ReduceMotion = true;
+                lockOnly.AccentIndex = 4;
+                lockOnly.DarkMode = true;
                 Check("prefs2.resave", FloatingPreferencesStore.Save(lockOnly), true);
                 FloatingPreferences both = FloatingPreferencesStore.Load();
                 Check("prefs2.lockSaved", both.PositionLocked, false);
                 Check("prefs2.motionKept", both.ReduceMotion, true);
+                Check("prefs2.accentKept", both.AccentIndex, 4);
+                Check("prefs2.darkKept", both.DarkMode, true);
+
+                // Legacy format 2 (strict three fields) migrates IN MEMORY to
+                // format 3 with the default theme; the file is untouched.
+                System.IO.File.WriteAllText(FloatingPreferencesStore.FilePath,
+                    "{\"Version\":2,\"PositionLocked\":true,\"ReduceMotion\":true}", Encoding.UTF8);
+                string before2 = System.IO.File.ReadAllText(
+                    FloatingPreferencesStore.FilePath, System.Text.Encoding.UTF8);
+                FloatingPreferences migrated2 = FloatingPreferencesStore.Load();
+                Check("prefs2.migrated2Locked", migrated2.PositionLocked, true);
+                Check("prefs2.migrated2Motion", migrated2.ReduceMotion, true);
+                Check("prefs2.migrated2Version", migrated2.Version, 3);
+                Check("prefs2.migrated2AccentDefault", migrated2.AccentIndex, 0);
+                Check("prefs2.migrated2DarkDefault", migrated2.DarkMode, false);
+                string afterRead2 = System.IO.File.ReadAllText(
+                    FloatingPreferencesStore.FilePath, System.Text.Encoding.UTF8);
+                Check("prefs2.migrate2NoWrite", afterRead2, before2);
 
                 // Legacy format 1 (strict two fields) migrates IN MEMORY to
-                // format 2 with ReduceMotion = false; the file is untouched.
+                // format 3 with ReduceMotion = false and the default theme; the
+                // file is untouched.
                 System.IO.File.WriteAllText(FloatingPreferencesStore.FilePath,
                     "{\"Version\":1,\"PositionLocked\":true}", Encoding.UTF8);
                 string before = System.IO.File.ReadAllText(
                     FloatingPreferencesStore.FilePath, System.Text.Encoding.UTF8);
                 FloatingPreferences migrated = FloatingPreferencesStore.Load();
                 Check("prefs2.migratedLocked", migrated.PositionLocked, true);
-                Check("prefs2.migratedVersion", migrated.Version, 2);
+                Check("prefs2.migratedVersion", migrated.Version, 3);
                 Check("prefs2.migratedMotionDefault", migrated.ReduceMotion, false);
+                Check("prefs2.migratedAccentDefault", migrated.AccentIndex, 0);
+                Check("prefs2.migratedDarkDefault", migrated.DarkMode, false);
                 string afterRead = System.IO.File.ReadAllText(
                     FloatingPreferencesStore.FilePath, System.Text.Encoding.UTF8);
                 Check("prefs2.migrateNoWrite", afterRead, before);
 
                 // Non-schema is never accepted: wrong version, wrong types,
-                // unknown extra fields, missing fields - in either format.
+                // unknown extra fields, missing fields - in any format.
                 System.IO.File.WriteAllText(FloatingPreferencesStore.FilePath,
-                    "{\"Version\":3,\"PositionLocked\":true,\"ReduceMotion\":false}", Encoding.UTF8);
+                    "{\"Version\":9,\"PositionLocked\":true,\"ReduceMotion\":false}", Encoding.UTF8);
                 Check("prefs2.wrongVersionNull", FloatingPreferencesStore.Load(), null);
                 System.IO.File.WriteAllText(FloatingPreferencesStore.FilePath,
-                    "{\"Version\":2,\"PositionLocked\":1,\"ReduceMotion\":false}", Encoding.UTF8);
+                    "{\"Version\":3,\"PositionLocked\":1,\"ReduceMotion\":false,"
+                    + "\"AccentIndex\":0,\"DarkMode\":false}", Encoding.UTF8);
                 Check("prefs2.wrongTypeNull", FloatingPreferencesStore.Load(), null);
                 System.IO.File.WriteAllText(FloatingPreferencesStore.FilePath,
-                    "{\"Version\":2,\"PositionLocked\":true,\"ReduceMotion\":false,\"Extra\":1}",
-                    Encoding.UTF8);
+                    "{\"Version\":3,\"PositionLocked\":true,\"ReduceMotion\":false,"
+                    + "\"AccentIndex\":0,\"DarkMode\":false,\"Extra\":1}", Encoding.UTF8);
                 Check("prefs2.extraFieldNull", FloatingPreferencesStore.Load(), null);
                 System.IO.File.WriteAllText(FloatingPreferencesStore.FilePath,
-                    "{\"Version\":2,\"PositionLocked\":true}", Encoding.UTF8);
+                    "{\"Version\":3,\"PositionLocked\":true,\"ReduceMotion\":false}", Encoding.UTF8);
                 Check("prefs2.missingFieldNull", FloatingPreferencesStore.Load(), null);
+                System.IO.File.WriteAllText(FloatingPreferencesStore.FilePath,
+                    "{\"Version\":3,\"PositionLocked\":true,\"ReduceMotion\":false,"
+                    + "\"AccentIndex\":\"x\",\"DarkMode\":false}", Encoding.UTF8);
+                Check("prefs2.wrongAccentTypeNull", FloatingPreferencesStore.Load(), null);
                 System.IO.File.WriteAllText(FloatingPreferencesStore.FilePath,
                     "{\"Version\":1,\"PositionLocked\":true,\"ReduceMotion\":false}", Encoding.UTF8);
                 Check("prefs1.extraFieldRejected", FloatingPreferencesStore.Load(), null);

@@ -54,33 +54,57 @@ namespace ArkLeft
 
     internal static class UiStyle
     {
-        public static readonly Color Navy = Color.FromArgb(36, 65, 92);
-        public static readonly Color Primary = Color.FromArgb(58, 131, 247);
-        public static readonly Color Teal = Primary;
-        public static readonly Color TealLight = Color.FromArgb(234, 242, 255);
-        public static readonly Color Canvas = Color.FromArgb(248, 251, 255);
-        public static readonly Color Border = Color.FromArgb(216, 227, 240);
-        public static readonly Color StrongBorder = Color.FromArgb(196, 212, 232);
-        public static readonly Color Divider = Color.FromArgb(229, 238, 245);
-        public static readonly Color Muted = Color.FromArgb(108, 129, 149);
-        public static readonly Color Weak = Color.FromArgb(145, 162, 178);
-        public static readonly Color Secondary = Color.FromArgb(242, 247, 255);
-        public static readonly Color Selected = Color.FromArgb(216, 232, 255);
-        public static readonly Color Track = Color.FromArgb(220, 233, 247);
-        public static readonly Color Sky = Primary;
-        public static readonly Color PrimaryButton = Primary;
-        public static readonly Color PrimaryHover = Color.FromArgb(47, 114, 232);
-        public static readonly Color PrimaryPressed = Color.FromArgb(40, 100, 211);
-        public static readonly Color Water = Color.FromArgb(90, 154, 248);
-        public static readonly Color SecondaryBlue = Color.FromArgb(109, 166, 250);
-        public static readonly Color HighlightBlue = Color.FromArgb(187, 215, 253);
-        public static readonly Color CircleRing = Color.FromArgb(175, 199, 226);
-        public static readonly Color CircleHover = Color.FromArgb(108, 159, 226);
-        public static readonly Color CircleNumber = Color.FromArgb(24, 62, 99);
-        public static readonly Color CircleCaption = Color.FromArgb(69, 98, 122);
-        public static readonly Color Success = Color.FromArgb(34, 197, 94);
-        public static readonly Color Warning = Color.FromArgb(246, 166, 35);
-        public static readonly Color Error = Color.FromArgb(224, 91, 101);
+        // The live palette is process-wide so existing self-painting controls
+        // keep reading the SAME static names. Defaults (accent 0, light) are
+        // byte-identical to the historical constants; Apply swaps the whole
+        // set at once on a theme change.
+        private static ThemePalette _palette =
+            ThemePaletteFactory.Build(ThemeCatalog.DefaultAccentIndex, false);
+
+        public static ThemePalette Current { get { return _palette; } }
+
+        public static Color Navy { get { return _palette.Navy; } }
+        public static Color Primary { get { return _palette.Primary; } }
+        public static Color Teal { get { return _palette.Teal; } }
+        public static Color TealLight { get { return _palette.TealLight; } }
+        public static Color Canvas { get { return _palette.Canvas; } }
+        public static Color Surface { get { return _palette.Surface; } }
+        public static Color Border { get { return _palette.Border; } }
+        public static Color StrongBorder { get { return _palette.StrongBorder; } }
+        public static Color Divider { get { return _palette.Divider; } }
+        public static Color Muted { get { return _palette.Muted; } }
+        public static Color Weak { get { return _palette.Weak; } }
+        public static Color Secondary { get { return _palette.Secondary; } }
+        public static Color Selected { get { return _palette.Selected; } }
+        public static Color Track { get { return _palette.Track; } }
+        public static Color Sky { get { return _palette.Sky; } }
+        public static Color PrimaryButton { get { return _palette.PrimaryButton; } }
+        public static Color PrimaryHover { get { return _palette.PrimaryHover; } }
+        public static Color PrimaryPressed { get { return _palette.PrimaryPressed; } }
+        public static Color Water { get { return _palette.Water; } }
+        public static Color SecondaryBlue { get { return _palette.SecondaryBlue; } }
+        public static Color HighlightBlue { get { return _palette.HighlightBlue; } }
+        public static Color CircleRing { get { return _palette.CircleRing; } }
+        public static Color CircleHover { get { return _palette.CircleHover; } }
+        public static Color CircleNumber { get { return _palette.CircleNumber; } }
+        public static Color CircleCaption { get { return _palette.CircleCaption; } }
+        public static Color CircleBackground { get { return _palette.CircleBackground; } }
+        public static Color OnAccent { get { return _palette.OnAccent; } }
+        public static Color Success { get { return _palette.Success; } }
+        public static Color Warning { get { return _palette.Warning; } }
+        public static Color Error { get { return _palette.Error; } }
+
+        // Swaps the live palette for the given accent preset / mode. Returns
+        // true when the palette actually changed so callers can skip repaint
+        // work on a same-value re-apply.
+        public static bool Apply(int accentIndex, bool darkMode)
+        {
+            accentIndex = ThemeCatalog.Normalize(accentIndex);
+            if (_palette.AccentIndex == accentIndex && _palette.DarkMode == darkMode)
+                return false;
+            _palette = ThemePaletteFactory.Build(accentIndex, darkMode);
+            return true;
+        }
 
         public static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
         {
@@ -108,8 +132,8 @@ namespace ArkLeft
                 ? PrimaryHover : Secondary;
             button.FlatAppearance.MouseDownBackColor = primary
                 ? PrimaryPressed : Selected;
-            button.BackColor = primary ? PrimaryButton : Color.White;
-            button.ForeColor = primary ? Color.White : Navy;
+            button.BackColor = primary ? PrimaryButton : Surface;
+            button.ForeColor = primary ? OnAccent : Navy;
             button.Cursor = Cursors.Hand;
             button.MinimumSize = new Size(0, 32);
             ModernButton modern = button as ModernButton;
@@ -126,7 +150,7 @@ namespace ArkLeft
         {
             ContextMenuStrip root = menu as ContextMenuStrip;
             if (root != null) root.ShowImageMargin = false;
-            menu.BackColor = Color.White;
+            menu.BackColor = Surface;
             menu.ForeColor = Navy;
             menu.Padding = new Padding(4);
             menu.Renderer = new ModernMenuRenderer();
@@ -280,7 +304,7 @@ namespace ArkLeft
 
         private sealed class MenuColors : ProfessionalColorTable
         {
-            public override Color ToolStripDropDownBackground { get { return Color.White; } }
+            public override Color ToolStripDropDownBackground { get { return Surface; } }
             public override Color MenuBorder { get { return Border; } }
             public override Color MenuItemSelected { get { return TealLight; } }
             public override Color MenuItemBorder { get { return TealLight; } }
@@ -296,7 +320,7 @@ namespace ArkLeft
             public override Color ButtonCheckedGradientMiddle { get { return TealLight; } }
             public override Color ButtonCheckedGradientEnd { get { return TealLight; } }
             public override Color SeparatorDark { get { return Divider; } }
-            public override Color SeparatorLight { get { return Color.White; } }
+            public override Color SeparatorLight { get { return Surface; } }
         }
 
         private sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
@@ -307,7 +331,7 @@ namespace ArkLeft
             {
                 ToolStripMenuItem item = e.Item as ToolStripMenuItem;
                 Color fill = e.Item.Pressed || (item != null && item.Checked)
-                    ? Selected : e.Item.Selected ? TealLight : Color.White;
+                    ? Selected : e.Item.Selected ? TealLight : Surface;
                 using (SolidBrush brush = new SolidBrush(fill))
                     e.Graphics.FillRectangle(brush, new Rectangle(Point.Empty, e.Item.Size));
             }
@@ -355,7 +379,7 @@ namespace ArkLeft
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            g.Clear(Parent == null ? Color.White : Parent.BackColor);
+            g.Clear(Parent == null ? UiStyle.Surface : Parent.BackColor);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             Color fill = !Enabled ? (Primary ? UiStyle.Track : UiStyle.Canvas)
                 : _pressed ? FlatAppearance.MouseDownBackColor
@@ -394,7 +418,7 @@ namespace ArkLeft
             bool selected = (e.State & DrawItemState.Selected) != 0;
             bool closed = (e.State & DrawItemState.ComboBoxEdit) != 0;
             selected = selected && !closed;
-            Color bg = !Enabled ? UiStyle.Canvas : selected ? UiStyle.Selected : Color.White;
+            Color bg = !Enabled ? UiStyle.Canvas : selected ? UiStyle.Selected : UiStyle.Surface;
             using (SolidBrush b = new SolidBrush(bg)) e.Graphics.FillRectangle(b, e.Bounds);
             string text = e.Index >= 0 && e.Index < Items.Count ? Items[e.Index].ToString() : Text;
             Rectangle bounds = e.Bounds; bounds.X += 4; bounds.Width -= 8;

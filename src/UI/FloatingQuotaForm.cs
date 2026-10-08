@@ -65,6 +65,10 @@ namespace ArkLeft
         private bool _positionLocked;
         // v0.9 UX017: reduce-motion flag restored from / saved with the prefs.
         private bool _reduceMotion;
+        // v0.24 UX029: accent preset + dark mode, restored from / saved with
+        // the same preference file. The resolved palette lives in UiStyle.
+        private int _accentIndex;
+        private bool _darkMode;
         private string _lockHint;
 
         public event EventHandler DetailsRequested;
@@ -98,6 +102,10 @@ namespace ArkLeft
         // own (1x1) window visibility does not track the circle, so callers must
         // subscribe here to observe show / hide transitions.
         public event EventHandler CircleVisibleChanged;
+        // v0.24 UX029: raised after a theme change is PERSISTED (never on a
+        // live preview) so the owner can repaint the details panel and rebuild
+        // the tray icon from the new palette.
+        public event EventHandler ThemeChanged;
 
         public FloatingQuotaForm() : this(null, null, null, null) { }
 
@@ -156,6 +164,13 @@ namespace ArkLeft
             // legacy format 1 file arrives migrated to the format 2 shape by
             // the store). Read-only: no write on start.
             _reduceMotion = prefs != null && prefs.ReduceMotion;
+            // v0.24 UX029: restore the theme (default accent 0 / light; a
+            // legacy format 1 / 2 file arrives migrated to the format 3 shape
+            // by the store). Existing files never carried an accent index, so
+            // normalization also guards a corrupt value.
+            _accentIndex = ThemeCatalog.Normalize(prefs == null ? 0 : prefs.AccentIndex);
+            _darkMode = prefs != null && prefs.DarkMode;
+            UiStyle.Apply(_accentIndex, _darkMode);
             _circle.PositionLocked = _positionLocked;
             _circle.SetReduceMotion(_reduceMotion);
             SyncPrefMenuChecks();
@@ -197,7 +212,8 @@ namespace ArkLeft
             catch (Exception) { }
             if (scr == null) scr = Screen.PrimaryScreen ?? Screen.AllScreens[0];
             FloatingSettingsForm dlg = new FloatingSettingsForm(candidates, _selected,
-                _save, DpiUtil.GetScale(scr), scr.WorkingArea);
+                _save, DpiUtil.GetScale(scr), scr.WorkingArea,
+                ApplyThemePreview, SaveTheme, _accentIndex, _darkMode);
             _settingsForm = dlg;
             try
             {
@@ -223,6 +239,56 @@ namespace ArkLeft
                 try { _settingsForm.Close(); } catch (Exception) { }
             }
             _settingsForm = null;
+        }
+
+        // ---- v0.24 UX029 theme ----
+
+        public int AccentIndex { get { return _accentIndex; } }
+        public bool DarkMode { get { return _darkMode; } }
+
+        // Live preview from the settings dialog: repaints the current surfaces
+        // with the chosen palette WITHOUT persisting and WITHOUT re-deriving
+        // the circle display. The dialog re-saves or reverts on close.
+        private void ApplyThemePreview(int accentIndex, bool darkMode)
+        {
+            if (!UiStyle.Apply(accentIndex, darkMode)) return;
+            RefreshThemeSurfaces();
+            if (ThemeChanged != null) ThemeChanged(this, EventArgs.Empty);
+        }
+
+        // Persists the theme through the same preference file as the lock /
+        // motion flags (format 3), then commits it in memory and announces the
+        // change so the owner can repaint the details panel / tray icon. A
+        // failed save keeps the OLD committed values and reports false.
+        private bool SaveTheme(int accentIndex, bool darkMode)
+        {
+            accentIndex = ThemeCatalog.Normalize(accentIndex);
+            FloatingPreferences p = new FloatingPreferences();
+            p.Version = FloatingPreferencesStore.FormatVersion;
+            p.PositionLocked = _positionLocked;
+            p.ReduceMotion = _reduceMotion;
+            p.AccentIndex = accentIndex;
+            p.DarkMode = darkMode;
+            bool saved;
+            try { saved = _prefsSave(p); }
+            catch (Exception) { saved = false; }
+            if (!saved) return false;
+            _accentIndex = accentIndex;
+            _darkMode = darkMode;
+            UiStyle.Apply(_accentIndex, _darkMode);
+            RefreshThemeSurfaces();
+            if (ThemeChanged != null) ThemeChanged(this, EventArgs.Empty);
+            return true;
+        }
+
+        // Repaints the controls this form owns. The details panel / tray icon
+        // are refreshed by the owner through ThemeChanged.
+        private void RefreshThemeSurfaces()
+        {
+            try { UiStyle.StyleMenu(_menu); } catch (Exception) { }
+            PopulateContentMenu(_contentItem);
+            Invalidate(true);
+            if (_circle != null && !_circle.IsDisposed) _circle.Invalidate();
         }
 
         // ---- test hooks ----

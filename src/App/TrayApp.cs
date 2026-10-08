@@ -226,6 +226,16 @@ namespace ArkLeft
                 SyncLockChecked();
             };
             _floating.ContentSaveFailed += delegate { OnContentSaveFailed(); };
+            // v0.24 UX029: the floating form applies the persisted theme (its
+            // palette is process-wide) once it has loaded preferences, and
+            // raises ThemeChanged on every preview / committed change so the
+            // details surface and the tray icon follow.
+            _floating.ThemeChanged += delegate
+            {
+                _form.ApplyTheme();
+                RebuildTrayIcon();
+            };
+            _form.ApplyTheme();
             SyncLockChecked();
 
             // Force both handles so BeginInvoke / click simulation work while
@@ -263,7 +273,6 @@ namespace ArkLeft
         }
 
         private static volatile TrayApp _instance;
-
         // Single-instance names. Tests may suffix them via ARK_LEFT_INSTANCE_SUFFIX
         // (normally empty) so an isolated test never signals the real user instance.
         public static string MutexName { get { return MutexNameBase + InstanceSuffix; } }

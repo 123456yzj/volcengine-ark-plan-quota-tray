@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace ArkLeft
@@ -140,6 +141,23 @@ namespace ArkLeft
         {
             if (_menuToggle == null || _floating == null) return;
             _menuToggle.Text = _floating.CircleVisible ? "隐藏悬浮窗" : "显示悬浮窗";
+        }
+
+        // v0.24 UX029: rebuild the drawn tray icon from the CURRENT palette and
+        // swap it in place. Offline tests have no NotifyIcon, so this is a
+        // no-op there (the icon itself carries no theme assertion).
+        private void RebuildTrayIcon()
+        {
+            if (_notify == null) return;
+            try
+            {
+                Icon next = IconArt.CreateIcon(32);
+                Icon old = _trayIcon;
+                _trayIcon = next;
+                _notify.Icon = next;
+                if (old != null) { try { old.Dispose(); } catch (Exception) { } }
+            }
+            catch (Exception) { }
         }
 
         // v0.8 UX016 / v0.9 UX017: the tray checks always mirror the real
