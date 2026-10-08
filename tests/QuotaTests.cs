@@ -90,6 +90,14 @@ namespace ArkLeft.Tests
                     foreach (string failure in _failures) Console.WriteLine(failure);
                     return _failed == 0 ? 0 : 1;
                 }
+                if (args.Length == 1 && (args[0] == "--app-update" || args[0] == "--app-update-live"))
+                {
+                    if (args[0] == "--app-update-live") AppUpdateLiveCase();
+                    else AppUpdateCases();
+                    Console.WriteLine("app-update: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
                 return RunTests();
             }
             catch (Exception ex)
@@ -127,6 +135,7 @@ namespace ArkLeft.Tests
             CliUsageExitCode();
             CliTimeoutCancelDispose();
             DirectCases();
+            AppUpdateCases();
             RuntimeTests.Run(Check);
             DisplayNameMapping();
             LayoutMathBounds();

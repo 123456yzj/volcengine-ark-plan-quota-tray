@@ -53,6 +53,10 @@ namespace ArkLeft
         private bool _loggingOut;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly System.Windows.Forms.Timer _runtimeTimer = new System.Windows.Forms.Timer();
+        private readonly System.Windows.Forms.Timer _appUpdateTimer = new System.Windows.Forms.Timer();
+        private readonly Version _appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        private readonly Func<CancellationToken, Task<AppUpdateResult>> _checkAppUpdate;
+        private readonly Action<string> _openAppRelease;
         private SnapshotController _controller;
         private readonly System.Windows.Forms.Timer _poll = new System.Windows.Forms.Timer();
         private bool _disposed;
@@ -68,8 +72,15 @@ namespace ArkLeft
         internal TrayApp(Func<IProgress<QueryProgress>, CancellationToken, Task<QueryOutcome>> query,
             Func<FloatingPreferences, bool> prefsSaveOverride,
             Func<CancellationToken, Task<CliResult>> loginOverride = null,
-            Func<CancellationToken, Task<CliResult>> logoutOverride = null)
+            Func<CancellationToken, Task<CliResult>> logoutOverride = null,
+            Func<CancellationToken, Task<AppUpdateResult>> updateOverride = null,
+            Action<string> openReleaseOverride = null)
         {
+            _checkAppUpdate = updateOverride ?? new Func<CancellationToken, Task<AppUpdateResult>>(
+                new AppUpdateClient(_appVersion).CheckAsync);
+            _openAppRelease = openReleaseOverride ?? delegate(string url) {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            };
             if (query == null) { _cli = new QuotaCli(null); _direct = new DirectAgentPlan(); }
             _loginAction = loginOverride ?? (_direct == null ? null
                 : new Func<CancellationToken, Task<CliResult>>(_direct.LoginAsync));
@@ -194,7 +205,7 @@ namespace ArkLeft
                 async delegate { await Login(); });
             _menuSettings.DropDownItems.Add(_menuLogout);
             _menuSettings.DropDownItems.Add(_menuLogin);
-            _menu.Items.Insert(2, new ToolStripMenuItem("关于 / 诊断", null, delegate { ShowRuntimeDiagnostics(); }));
+            _menu.Items.Insert(2, new ToolStripMenuItem("关于 / 诊断", null, delegate { ShowAboutDiagnostics(); }));
             UiStyle.StyleMenu(_menu);
             _floating.SetContextMenuStrip(_menu);
             UiStyle.AttachFloatingMenu(_menu, _menuSettings, _menuContent,
@@ -247,6 +258,18 @@ namespace ArkLeft
                 await Task.Run(() => manager.CheckForUpdateAsync(token));
             };
             _runtimeTimer.Start();
+
+            // Isolated IPC instances used by integration tests do not perform
+            // automatic app-version requests. Manual checks share the same path.
+            if (string.IsNullOrEmpty(InstanceSuffix))
+            {
+                _appUpdateTimer.Interval = 15000;
+                _appUpdateTimer.Tick += async delegate {
+                    _appUpdateTimer.Interval = 86400000;
+                    await CheckAppUpdate(false);
+                };
+                _appUpdateTimer.Start();
+            }
 
 
             // First launch shows the circle (marker still decides silent start).
@@ -344,7 +367,8 @@ namespace ArkLeft
         private void ExitApp()
         {
             _poll.Stop();
-            _runtimeTimer.Stop(); _lifetime.Cancel();
+            _runtimeTimer.Stop(); _appUpdateTimer.Stop(); _lifetime.Cancel();
+            if (_aboutDialog != null) _aboutDialog.Close();
             if (_login != null) _login.Cancel();
             _controller.Dispose();
             if (_direct != null) _direct.Dispose();
@@ -370,7 +394,8 @@ namespace ArkLeft
             if (disposing && !_disposed)
             {
                 _disposed = true;
-                _lifetime.Cancel(); _runtimeTimer.Dispose();
+                _lifetime.Cancel(); _runtimeTimer.Dispose(); _appUpdateTimer.Dispose();
+                if (_aboutDialog != null) _aboutDialog.Close();
                 if (_login != null) _login.Cancel();
                 _poll.Dispose();
                 if (_controller != null) _controller.Dispose();

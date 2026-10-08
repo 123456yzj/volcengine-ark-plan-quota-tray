@@ -115,7 +115,7 @@ namespace ArkLeft
             if (_disposed || _cli == null) return;
             using (Form dialog = new Form())
             {
-                dialog.Text = "ark_left 关于 / 诊断"; dialog.StartPosition = FormStartPosition.CenterScreen;
+                dialog.Text = "ark_left ArkCLI 组件诊断"; dialog.StartPosition = FormStartPosition.CenterParent;
                 dialog.ClientSize = new Size(430, 235); dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
                 dialog.MaximizeBox = false; dialog.MinimizeBox = false;
                 Label label = new Label { AutoSize = false, Bounds = new Rectangle(20, 20, 390, 130) };
@@ -129,7 +129,7 @@ namespace ArkLeft
                         + "\r\n待激活版本：" + (state.pendingVersion ?? "无");
                 };
                 display(); dialog.Controls.Add(label);
-                Button check = new Button { Text = "检查更新", Bounds = new Rectangle(20, 165, 120, 32) };
+                Button check = new Button { Text = "检查组件更新", Bounds = new Rectangle(20, 165, 120, 32) };
                 check.Click += async delegate {
                     check.Enabled = false;
                     ArkCliRuntimeManager manager = _cli.RuntimeManager;
@@ -141,8 +141,8 @@ namespace ArkLeft
                 Label ttl = new Label { Text = "每 24 小时最多联网检查一次", AutoSize = true, Location = new Point(155, 173) };
                 dialog.Controls.Add(ttl);
                 _form.SetDialogOpen(true);
-                try { dialog.ShowDialog(_floating.CircleSurface); }
-                finally { if (!_disposed) _form.SetDialogOpen(false); }
+                try { dialog.ShowDialog(_aboutDialog != null ? (IWin32Window)_aboutDialog : _floating.CircleSurface); }
+                finally { if (!_disposed && _aboutDialog == null) _form.SetDialogOpen(false); }
             }
         }
 

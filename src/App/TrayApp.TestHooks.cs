@@ -182,5 +182,11 @@ namespace ArkLeft
         internal Task LoginForTest() { return Login(); }
         internal Task LogoutForTest() { return Logout(); }
         internal Task RefreshForTest() { return _controller.Refresh(); }
+        internal Task CheckAppUpdateForTest(bool manual) { return CheckAppUpdate(manual); }
+        internal AppUpdateResult AppUpdateResultForTest { get { return _appUpdateResult; } }
+        internal bool AppUpdateCheckingForTest { get { return _appUpdateChecking; } }
+        internal int AppUpdateNotifyCountForTest { get { return _appUpdateNotifyCount; } }
+        internal void OpenAppReleaseForTest() { OpenAppRelease(); }
+        internal AppUpdateForm AboutDialogForTest { get { return _aboutDialog; } }
     }
 }

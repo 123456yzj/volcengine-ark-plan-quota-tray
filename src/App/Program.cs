@@ -5,8 +5,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("ark_left")]
 [assembly: AssemblyProduct("ark_left")]
 [assembly: AssemblyDescription("火山方舟订阅额度托盘查询工具")]
-[assembly: AssemblyVersion("0.21.1.0")]
-[assembly: AssemblyFileVersion("0.21.1.0")]
+[assembly: AssemblyVersion("0.22.0.0")]
+[assembly: AssemblyFileVersion("0.22.0.0")]
 
 namespace ArkLeft
 {

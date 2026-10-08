@@ -13,6 +13,14 @@ CLI auth / usage 字段来自 2026-10-03–04 的真实脱敏查询；GetAFPUsag
 - 超时、取消或退出终止活动子进程；Dispose 后不再启动。非零退出不能当作成功。auth / usage 两阶段持有同一个 Runtime lease 的托管查询流程为计划 / 待验收，尚未进入当前分支实现。
 - 应用内“设置 → 重新登录”走直连浏览器 SSO，等待上限 10 分钟，可取消。“设置 → 登出”取消活动登录、查询和续期，清除本项目登录凭据与额度缓存；删除凭据失败明确报告未完成。两项账号操作只放在共享菜单的设置子菜单，具体并发边界见直连契约。
 
+## 应用更新检测契约 1
+
+- 当前版本来自应用程序集；最新版本通过 HTTPS GET `https://api.github.com/repos/123456yzj/volcengine-ark-plan-quota-tray/releases/latest` 获取，使用公开 GitHub API，不附加方舟凭据或 GitHub 令牌。请求限时 20 秒，响应最大 1 MiB，TLS 1.2，沿用下载器的 HTTPS host 与重定向限制。
+- `draft` 和 `prerelease` 必须为布尔 false；`tag_name` 接受可选小写 `v` 前缀和三段或四段非负整数。按 `System.Version` 比较，缺省 revision 规范为 0；仅远端高于当前版本为 Available，不降级。
+- `html_url` 必须精确等于本仓库 `/releases/tag/<tag>`；assets 必须含 `ark_left-<version>-windows-setup.exe`，`state=uploaded` 且 `browser_download_url` 精确匹配本仓库 `/releases/download/<tag>/<installer>`。三段显示普通版本，非零 revision 显示四段。异常响应、未就绪安装包及请求失败均为 Failed，不回显原始响应或异常。
+- 状态为 Current / Available / Failed / Cancelled；当前进程内缓存最近结果及已通知版本，不落盘。检查中按钮禁用，重复触发不排队；请求使用应用生命周期取消令牌，退出后的结果不更新窗口或发通知。
+- 生产启动约 15 秒后检查，此后运行期间每 24 小时检查；设置 `ARK_LEFT_INSTANCE_SUFFIX` 的隔离实例跳过自动应用更新请求。手动检查不受此测试隔离限制，不依赖登录或 ArkCLI；下载按钮通过系统浏览器打开校验后的发布页，不获取或执行安装包。
+
 ## 身份与 scope
 
 | 来源 | 字段 |
