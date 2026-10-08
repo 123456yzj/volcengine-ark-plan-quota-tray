@@ -9,6 +9,57 @@ namespace ArkLeft.Tests
 {
     internal static partial class QuotaTests
     {
+        private static void ThemeDialogDpiCases()
+        {
+            foreach (double scale in new double[] { 1.0, 1.5, 1.75, 2.0, 2.5 })
+            using (ThemeDialogForm dlg = new ThemeDialogForm(scale,
+                new Rectangle(0, 0, 3840, 2160), null, null, 5, false))
+            using (Bitmap baseline = new Bitmap(1, 1))
+            using (Bitmap target = new Bitmap(1, 1))
+            {
+                baseline.SetResolution(96, 96);
+                target.SetResolution((float)(96 * scale), (float)(96 * scale));
+                using (Graphics g96 = Graphics.FromImage(baseline))
+                using (Graphics g = Graphics.FromImage(target))
+                {
+                    Control accentLabel = null;
+                    foreach (Control c in dlg.Controls)
+                        if (c.Text == "主题色：") { accentLabel = c; break; }
+                    Control[] controls = new Control[] { dlg.HeadingForTest,
+                        accentLabel, dlg.AccentComboForTest,
+                        dlg.DarkCheckForTest, dlg.SaveButtonForTest, dlg.CancelButtonForTest,
+                        dlg.CloseButtonForTest, dlg.ErrorLabelForTest };
+                    float[] points = new float[] { 10, 9, 9, 9, 9, 9, 14, 8.25f };
+                    for (int i = 0; i < controls.Length; i++)
+                    {
+                        Control control = controls[i];
+                        using (Font logical = new Font("Microsoft YaHei UI", points[i], control.Font.Style))
+                        {
+                            float expected = logical.GetHeight(g96) * (float)scale;
+                            float actual = control.Font.GetHeight(g);
+                            Check("theme.dpi" + scale + ".font" + i,
+                                Math.Abs(actual - expected) < 1, true);
+                            if (i != 7)
+                                Check("theme.dpi" + scale + ".textHeight" + i,
+                                    actual <= control.Height, true);
+                        }
+                    }
+                }
+                if (scale == 1.75 || scale == 2.0)
+                {
+                    dlg.Show();
+                    Application.DoEvents();
+                    using (Bitmap preview = new Bitmap(dlg.Width, dlg.Height))
+                    {
+                        dlg.DrawToBitmap(preview, dlg.ClientRectangle);
+                        preview.Save(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                            "preview-theme-dpi" + (int)(scale * 100) + ".png"));
+                    }
+                    dlg.Close();
+                }
+            }
+        }
+
         // ---- v0.24 UX029: theme (accent presets + dark mode) ----
 
         private static void ThemeUX029Cases()

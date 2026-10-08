@@ -81,7 +81,15 @@ namespace ArkLeft.Tests
                     FloatingPreferencesUX017Cases();
                     FloatingMenuUX023Cases();
                     ThemeUX029Cases();
+                    ThemeDialogDpiCases();
                     Console.WriteLine("theme: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
+                if (args.Length == 1 && args[0] == "--theme-dpi")
+                {
+                    ThemeDialogDpiCases();
+                    Console.WriteLine("theme-dpi: passed " + _passed + ", failed " + _failed);
                     foreach (string failure in _failures) Console.WriteLine(failure);
                     return _failed == 0 ? 0 : 1;
                 }
@@ -192,6 +200,7 @@ namespace ArkLeft.Tests
             CardOnlyUX022Cases();
             FloatingMenuUX023Cases();
             ThemeUX029Cases();
+            ThemeDialogDpiCases();
 
             Console.WriteLine();
             Console.WriteLine("passed: " + _passed + ", failed: " + _failed);

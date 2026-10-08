@@ -281,8 +281,11 @@ namespace ArkLeft
             string key = pt.ToString(CultureInfo.InvariantCulture) + (bold ? "b" : "r");
             Font cached;
             if (_fonts.TryGetValue(key, out cached)) return cached;
-            Font f = new Font("Microsoft YaHei UI", (float)(pt * _scale),
-                bold ? FontStyle.Bold : FontStyle.Regular);
+            // Bounds already use the owner's DPI scale. Convert the 96-DPI
+            // point size to physical pixels once; point fonts would let GDI
+            // apply the monitor DPI a second time when the dialog is drawn.
+            Font f = new Font("Microsoft YaHei UI", (float)(pt * 96.0 / 72.0 * _scale),
+                bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
             _fonts[key] = f;
             return f;
         }
