@@ -19,7 +19,14 @@ namespace ArkLeft
         Cancelled,
         RuntimeMissing,
         RuntimeStartFailed,
-        RuntimeIncompatible
+        RuntimeIncompatible,
+        LoginFailed,
+        TokenRefreshFailed,
+        Unauthorized,
+        Forbidden,
+        SignatureFailed,
+        NetworkError,
+        CredentialStorageFailed
     }
 
     public class QuotaSnapshot
@@ -212,6 +219,7 @@ namespace ArkLeft
             switch (label)
             {
                 case "5h": return "5 小时";
+                case "daily": return "每日";
                 case "weekly": return "每周";
                 case "monthly": return "每月";
                 case "session": return "会话";

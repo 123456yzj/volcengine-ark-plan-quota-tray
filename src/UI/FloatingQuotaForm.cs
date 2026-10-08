@@ -16,8 +16,7 @@ namespace ArkLeft
     // second request cannot stack a duplicate and ExitApp disposes it.
     internal partial class FloatingQuotaForm : Form
     {
-        // Appended to every circle tooltip so the interaction is discoverable
-        // (details on click, settings on right-click) without visual clutter.
+        // Kept in the circle's accessibility description, without hover popups.
         internal const string CircleHint = "点击查看全部额度，右键设置";
 
         private readonly FloatingCircleControl _circle;
@@ -77,8 +76,7 @@ namespace ArkLeft
         // current state.
         public event EventHandler PositionLockChanged;
         // v0.8 UX016 fix: raised ONLY when a lock save fails. The owner uses
-        // it to surface a short tray notification while the circle is hidden
-        // (the circle tooltip path is useless there). The hint text itself
+        // it to surface a short tray notification. The hint text itself
         // stays short and readable - never a raw exception.
         public event EventHandler LockSaveFailed;
         // v0.9 UX017: raised after any reduce-motion toggle attempt (success
@@ -87,11 +85,11 @@ namespace ArkLeft
         public event EventHandler ReduceMotionChanged;
         // v0.9 UX017: raised ONLY when a reduce-motion save fails. The owner
         // surfaces a DISTINCT short tray notification (never the lock-failure
-        // wording) while the circle is hidden.
+        // wording), regardless of circle visibility.
         public event EventHandler MotionSaveFailed;
         // v0.15 UX023: raised ONLY when a 悬浮内容 menu save fails. The owner
         // surfaces a DISTINCT short tray notification (never the lock / motion
-        // wording) while the circle is hidden.
+        // wording), regardless of circle visibility.
         public event EventHandler ContentSaveFailed;
         // v0.15 UX023: raised after any 悬浮内容 menu selection attempt so a
         // shared (tray) submenu can rebuild its checks from the real state.

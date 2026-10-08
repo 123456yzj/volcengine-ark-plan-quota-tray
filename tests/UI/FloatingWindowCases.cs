@@ -316,7 +316,7 @@ namespace ArkLeft.Tests
             using (FloatingQuotaForm form = new FloatingQuotaFormForData(
                 SyntheticSample.BuildLarge()))
             {
-                System.Drawing.Rectangle narrow = new System.Drawing.Rectangle(0, 0, 500, 700);
+                System.Drawing.Rectangle narrow = new System.Drawing.Rectangle(0, 0, 500, 640);
                 form.ShowCircleAtForTest(narrow, 1.0);
                 DetailsPlacement p = form.PrepareDetails(details, narrow);
                 System.Drawing.Rectangle b = form.PendingDetailsBounds;
@@ -546,7 +546,30 @@ namespace ArkLeft.Tests
         [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "WindowFromPoint")]
         private static extern IntPtr AntialiasWindowFromPoint(Point point);
 
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr window, int index);
+
         private static void FloatingAntialiasCases()
+        {
+            // Native layered-window checks need their own WinForms thread.
+            // Earlier login/modal cases otherwise leave native window state
+            // that does not occur when this fixture runs in its own process.
+            Exception failure = null;
+            System.Threading.Thread thread = new System.Threading.Thread(delegate()
+            {
+                try { FloatingAntialiasWindowCases(); }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.SetApartmentState(System.Threading.ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            if (failure != null) throw new InvalidOperationException("Native circle fixture failed", failure);
+        }
+
+        private static void FloatingAntialiasWindowCases()
         {
             using (FloatingCircleControl circle = new FloatingCircleControl())
             {
@@ -560,10 +583,26 @@ namespace ArkLeft.Tests
                             PercentKnown = true, Percent = percent, PercentText = percent + "%",
                             AmountKnown = true, RemainingAmount = 100 });
                         circle.Refresh(); // Exercise the native layered-window upload too.
+                        // Complete queued show/position messages left by earlier
+                        // WinForms cases before asking Windows for hit testing.
+                        Application.DoEvents();
                         string nativeTag = "circle.antialias.native." + scale + "." + percent;
-                        Check(nativeTag + ".centerHit", AntialiasWindowFromPoint(
-                            circle.PointToScreen(new Point(circle.Width / 2, circle.Height / 2))),
-                            circle.Handle);
+                        Point center = circle.PointToScreen(new Point(circle.Width / 2, circle.Height / 2));
+                        IntPtr hit = AntialiasWindowFromPoint(center);
+                        if (hit != circle.Handle)
+                        {
+                            uint hitPid;
+                            GetWindowThreadProcessId(hit, out hitPid);
+                            Console.Error.WriteLine(nativeTag + " bounds=" + circle.Bounds
+                                + " center=" + center + " visible=" + circle.Visible
+                                + " enabled=" + circle.Enabled + " focused=" + circle.Focused
+                                + " cursor=" + Cursor.Position + " hit=" + hit + " hitPid=" + hitPid
+                                + " style=" + GetWindowLong(circle.Handle, -16).ToString("X")
+                                + " exStyle=" + GetWindowLong(circle.Handle, -20).ToString("X")
+                                + " nchit=" + SendMessage(circle.Handle, 0x0084, IntPtr.Zero,
+                                    new IntPtr((center.Y << 16) | (center.X & 0xffff))));
+                        }
+                        Check(nativeTag + ".centerHit", hit, circle.Handle);
                         Check(nativeTag + ".cornerPassesThrough", AntialiasWindowFromPoint(
                             circle.PointToScreen(Point.Empty)) != circle.Handle, true);
                         using (Bitmap frame = circle.RenderFrameForTest())

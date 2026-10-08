@@ -14,7 +14,6 @@ namespace ArkLeft.Check
         {
             Console.OutputEncoding = Encoding.UTF8;
 
-            CliMode mode = null;
             if (args.Length == 1 && args[0] == "--runtime-download") return VerifyRuntimeDownload();
             if (args.Length == 1 && args[0] == "--runtime-release")
             {
@@ -34,22 +33,18 @@ namespace ArkLeft.Check
                 if (string.Equals(args[i], "--help", StringComparison.OrdinalIgnoreCase))
                 {
                     Console.WriteLine("ark_left check: 真实查询并输出脱敏摘要。");
-                    Console.WriteLine("用法: ark_left-check.exe");
+                    Console.WriteLine("用法: ark_left-check.exe [--login] [--refresh-session]");
                     return 0;
                 }
             }
 
-            QuotaCli cli = new QuotaCli(mode);
-            try { cli.RuntimeManager.EnsureRuntimeAsync(CancellationToken.None).GetAwaiter().GetResult(); }
-            catch (Exception) { }
-            CliResolveResult res = QuotaCli.Resolve(cli.RuntimeManager);
-            Console.WriteLine("cli_found=" + (res.IsUsable ? "true" : "false"));
-            if (!res.IsUsable)
+            DirectAgentPlan direct = new DirectAgentPlan();
+            Console.WriteLine("quota_transport=direct-getafpusage");
+            if (Array.IndexOf(args, "--login") >= 0)
             {
-                if (res.Found && res.Message != null) Console.WriteLine("cli_note=" + res.Message);
-                Console.WriteLine("status=" + res.Error);
-                cli.Dispose();
-                return 3;
+                CliResult login = direct.LoginAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Console.WriteLine("login=" + (login.ExitCode == 0 && !login.Cancelled ? "success" : login.Failure ?? "Cancelled"));
+                if (login.ExitCode != 0 || login.Cancelled) { direct.Dispose(); return 3; }
             }
 
             QuotaSnapshot snap;
@@ -59,9 +54,18 @@ namespace ArkLeft.Check
                 // Detailed entry point so the sanitized summary can also report
                 // the auth-scope vs usage-viewer verdict. Only the verdict label
                 // is printed: never the fingerprint, viewer object or any ID.
-                QueryOutcome outcome = cli.QueryDetailedAsync(null, CancellationToken.None).Result;
+                QueryOutcome outcome = direct.QueryDetailedAsync(null, CancellationToken.None).Result;
                 snap = outcome.Snapshot;
                 verdict = outcome.Verdict;
+                Console.WriteLine("refresh_failed=" + outcome.RefreshFailed.ToString().ToLowerInvariant());
+                if (Array.IndexOf(args, "--refresh-session") >= 0 && snap.Status == QuotaStatus.Ok)
+                {
+                    direct.Dispose();
+                    direct = new DirectAgentPlan(); // STS is deliberately not persisted: exercises refresh grant.
+                    outcome = direct.QueryDetailedAsync(null, CancellationToken.None).GetAwaiter().GetResult();
+                    snap = outcome.Snapshot; verdict = outcome.Verdict;
+                    Console.WriteLine("restart_refresh=" + snap.Status);
+                }
             }
             catch (Exception)
             {
@@ -70,7 +74,7 @@ namespace ArkLeft.Check
             }
             finally
             {
-                cli.Dispose();
+                direct.Dispose();
             }
 
             // Same / Unknown / Mismatch only; no fingerprint, viewer or IDs.
@@ -94,7 +98,9 @@ namespace ArkLeft.Check
                         Console.WriteLine("  period=" + p.LabelDisplay
                              + " remaining=" + Remaining(pq, p)
                              + " source=" + Source(pq, p)
-                            + " amount=" + (effective.AmountKnown ? DisplayNames.Number(effective.RemainingAmount) : "unknown")
+                             + " used=" + (p.UsedKnown ? p.Used.ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "unknown")
+                             + " total=" + (p.TotalKnown ? p.Total.ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "unknown")
+                             + " amount=" + (effective.AmountKnown ? DisplayNames.Number(effective.RemainingAmount) : "unknown")
                             + " reset=" + (p.HasReset ? DisplayNames.FormatTime(p.ResetLocal) : "none")
                             + (p.Clamped ? " clamped=true" : ""));
                     }

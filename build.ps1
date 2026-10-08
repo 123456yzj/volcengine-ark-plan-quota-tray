@@ -122,8 +122,9 @@ if ($LASTEXITCODE -ne 0) { throw "csc failed building ark_left-check.exe (exit $
 
 # 3) Test runner
 $testArgs = @('/nologo', '/target:exe', '/platform:anycpu', '/optimize+',
-              '/main:ArkLeft.Tests.QuotaTests',
-              ('/out:' + (Join-Path $bin 'ark_left-tests.exe')))
+               '/main:ArkLeft.Tests.QuotaTests',
+               ('/out:' + (Join-Path $bin 'ark_left-tests.exe')),
+               ('/win32manifest:' + (Join-Path $root 'app.manifest')))
 foreach ($f in $libraryFiles) { $testArgs += $f }
 $testArgs += $testFiles
 $testArgs += @('/reference:' + ($refs -join ','))
@@ -162,6 +163,6 @@ foreach ($notice in @('THIRD-PARTY-NOTICES.md', 'third_party')) {
 }
 $packagedDocs = Join-Path $bin 'docs'
 [System.IO.Directory]::CreateDirectory($packagedDocs) | Out-Null
-foreach ($guide in @('setup.md', 'managed-runtime.md')) {
+foreach ($guide in @('setup.md', 'managed-runtime.md', 'direct-agent-plan.md')) {
     Copy-Item -LiteralPath (Join-Path $root "docs\$guide") -Destination $packagedDocs -Force
 }

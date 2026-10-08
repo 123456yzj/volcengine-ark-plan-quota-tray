@@ -87,9 +87,14 @@ namespace ArkLeft
             return time == DateTime.MinValue ? "更新时间未知" : "最后更新 " + DisplayNames.FormatTime(time);
         }
 
-        // UX022 v0.14: the old footer update time now lives on the cards'
-        // tooltip. Text-only, in place — no card rebuild, no focus / scroll
-        // change.
+        private static string HeaderUpdateTime(DateTime time)
+        {
+            return time == DateTime.MinValue ? "更新时间未知"
+                : "更新 " + time.ToString("MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        // Update the header timestamp and full-date tooltip in place, without
+        // rebuilding cards or changing focus, scroll or header geometry.
         private void SyncUpdateTimeTooltip()
         {
             if (_view == null || _view.Data == null) return;
@@ -98,6 +103,12 @@ namespace ArkLeft
             {
                 try { _tip.SetToolTip(_content.Controls[i], text); }
                 catch (Exception) { }
+                foreach (Control child in _content.Controls[i].Controls)
+                {
+                    if (child.Name != "arkUpdateTime") continue;
+                    child.Text = HeaderUpdateTime(_view.Data.FetchedAt);
+                    _tip.SetToolTip(child, text);
+                }
             }
         }
 
@@ -187,9 +198,12 @@ namespace ArkLeft
                     fields.Add(!p.SubscribedKnown ? "订阅状态未知" :
                         (!p.Subscribed && p.Error == null && !p.PeriodErrorPresent && !p.Malformed ? "未订阅" : ""));
                     fields.Add(p.Error ?? (p.Periods.Count == 0 ? "无周期数据。" : ""));
-                    fields.Add(p.Periods.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    int visiblePeriods = 0;
+                    foreach (PeriodQuota q in p.Periods) if (!HiddenDetailPeriod(p, q)) visiblePeriods++;
+                    fields.Add(visiblePeriods.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     foreach (PeriodQuota q in p.Periods)
                     {
+                        if (HiddenDetailPeriod(p, q)) continue;
                         fields.Add(q.LabelDisplay); fields.Add(q.Error);
                         if (q.Error != null) continue;
                         EffectivePeriodQuota effective = QuotaDisplay.Effective(p, q);

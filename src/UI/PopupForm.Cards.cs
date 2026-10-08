@@ -178,13 +178,34 @@ namespace ArkLeft
                 int y = S(12);
 
                 Label title = new Label();
-                title.Font = F(10f, true);
+                title.Font = F(9f, true);
                 title.ForeColor = TextDark;
                 title.AutoSize = false;
-                title.Text = ProductTitle(pq);
-                int titleHeight = MeasureWrappedHeight(title.Text, title.Font, innerW);
-                title.SetBounds(pad, y, innerW, titleHeight);
+                title.Text = HeaderProductTitle(pq);
+                title.AutoEllipsis = true;
+                title.TextAlign = ContentAlignment.MiddleLeft;
+                int titleHeight = S(26);
+                int updateWidth = S(112), refreshWidth = S(42), headerGap = S(6);
+                int titleWidth = Math.Max(1, innerW - updateWidth - refreshWidth - headerGap * 2);
+                title.SetBounds(pad, y, titleWidth, titleHeight);
+                _tip.SetToolTip(title, ProductTitle(pq));
                 card.Controls.Add(title);
+
+                Label updated = new Label { Name = "arkUpdateTime", AutoSize = false,
+                    Font = F(8.25f, false), ForeColor = TextMuted,
+                    TextAlign = ContentAlignment.MiddleRight, AutoEllipsis = true,
+                    AccessibleName = "最近更新时间" };
+                updated.Text = HeaderUpdateTime(_view == null || _view.Data == null ? DateTime.MinValue : _view.Data.FetchedAt);
+                updated.SetBounds(pad + titleWidth + headerGap, y, updateWidth, titleHeight);
+                card.Controls.Add(updated);
+
+                Button refresh = new ModernButton { Name = "arkHeaderRefresh", Text = "刷新", AccessibleName = "刷新额度" };
+                UiStyle.StyleButton(refresh, false);
+                refresh.MinimumSize = Size.Empty;
+                refresh.Font = F(8.25f, false);
+                refresh.SetBounds(pad + innerW - refreshWidth, y, refreshWidth, titleHeight);
+                refresh.Click += delegate { OnRefreshRequested(); };
+                card.Controls.Add(refresh);
                 y += titleHeight + S(10);
 
                 if (!pq.SubscribedKnown)
@@ -197,16 +218,19 @@ namespace ArkLeft
                 else if (pq.Periods.Count == 0)
                     y = AddLine(card, "无周期数据。", TextMuted, pad, y, innerW);
 
+                int displayedPeriods = 0;
                 for (int i = 0; i < pq.Periods.Count; i++)
                 {
+                    if (HiddenDetailPeriod(pq, pq.Periods[i])) continue;
+                    if (displayedPeriods > 0) y += S(8);
                     y = BuildPeriodRows(card, pq, pq.Periods[i], pad, y, innerW,
                         false, periodSurfaces);
-                    if (i < pq.Periods.Count - 1) y += S(8);
+                    displayedPeriods++;
                 }
 
                 card.SetPeriodSurfaces(periodSurfaces);
                 card.Height = y + S(10);
-                card.Tag = pq.Periods.Count;
+                card.Tag = displayedPeriods;
             };
 
             card.Width = _cardWidth > 0 ? _cardWidth : S(340);
@@ -388,6 +412,19 @@ namespace ArkLeft
             using (GraphicsPath path = UiStyle.RoundedRectangle(
                 new Rectangle(0, 0, card.Width - 1, card.Height - 1), radius))
                 e.Graphics.DrawPath(pen, path);
+        }
+
+        private static bool HiddenDetailPeriod(ProductQuota product, PeriodQuota period)
+        {
+            return product.Product == "agent-plan" && product.Edition == "personal" && period.Label == "daily";
+        }
+
+        private static string HeaderProductTitle(ProductQuota pq)
+        {
+            if (pq.Product != "agent-plan") return ProductTitle(pq);
+            string edition = DisplayNames.Edition(pq.Edition) ?? pq.DisplayName;
+            string tier = DisplayNames.Tier(pq.Tier);
+            return tier == null ? edition : edition + " · " + tier;
         }
 
         private static string ProductTitle(ProductQuota pq)

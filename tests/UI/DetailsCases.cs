@@ -528,7 +528,9 @@ namespace ArkLeft.Tests
                         Color top = bitmap.GetPixel(circle.Width / 2, 12);
                         Check("circle.skyOrWhite", top.ToArgb(), (percent >= 97
                             ? Color.FromArgb(90, 154, 248) : Color.White).ToArgb());
-                        Color ring = bitmap.GetPixel(0, circle.Height / 2);
+                        // The antialiased outer edge is transparent; sample the
+                        // inset stroke rather than the old clipped boundary.
+                        Color ring = bitmap.GetPixel(3, circle.Height / 2);
                         Check("circle.bluegrayRing", ring.G - ring.R >= 8
                             && ring.B - ring.G >= 3 && ring.B >= 200, true);
                     }

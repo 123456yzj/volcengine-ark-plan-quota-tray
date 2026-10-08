@@ -180,6 +180,7 @@ namespace ArkLeft
         internal void StartPollingForTest() { if (!_disposed) _poll.Start(); }
 
         internal Task LoginForTest() { return Login(); }
+        internal Task LogoutForTest() { return Logout(); }
         internal Task RefreshForTest() { return _controller.Refresh(); }
     }
 }

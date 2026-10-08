@@ -303,7 +303,7 @@ namespace ArkLeft
         // successful save; a failed save keeps every old preference and both
         // menu checks, shows a short motion-specific hint (never the lock
         // wording, never a raw exception), and raises MotionSaveFailed for
-        // the hidden-circle tray notification. Same-value calls skip the
+        // the tray notification. Same-value calls skip the
         // save entirely.
         public void SetReduceMotion(bool on)
         {
@@ -335,7 +335,6 @@ namespace ArkLeft
         private void ShowLockHint(string text)
         {
             _lockHint = text;
-            _circle.ShowStatusHint(text);
         }
 
         internal string LockHintForTest { get { return _lockHint; } }

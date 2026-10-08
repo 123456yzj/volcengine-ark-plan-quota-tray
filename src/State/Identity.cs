@@ -20,6 +20,8 @@ namespace ArkLeft
         public string OwnerTrn;
         public string Region;
         public string Project;
+        // Opaque binding of a direct browser-login session. Never displayed.
+        public string DirectSessionBinding;
     }
 
     // Identity parsed from `usage plan --format json` viewer object.
@@ -68,6 +70,14 @@ namespace ArkLeft
         public static QueryScope FromAuth(AuthIdentity a)
         {
             if (a == null) return Unknown();
+            if (!string.IsNullOrEmpty(a.DirectSessionBinding))
+            {
+                Guid binding;
+                if (!Guid.TryParseExact(a.DirectSessionBinding, "N", out binding)) return Unknown();
+                return new QueryScope { IsKnown = true, ProfileName = a.Name,
+                    Region = a.Region, Project = a.Project,
+                    Fingerprint = Sha256Hex("direct-agent-plan\n" + a.DirectSessionBinding + "\ncn-beijing\npersonal") };
+            }
             if (string.IsNullOrEmpty(a.OwnerTrn) || string.IsNullOrEmpty(a.Name)
                 || string.IsNullOrEmpty(a.Region) || string.IsNullOrEmpty(a.Project))
                 return Unknown();

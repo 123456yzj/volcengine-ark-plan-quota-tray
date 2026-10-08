@@ -32,6 +32,8 @@ namespace ArkLeft
         public ScopeVerdict Verdict;    // auth-scope vs usage-viewer check
         public string RuntimeVersion;
         public ArkCliRuntimeError RuntimeError;
+        public bool RefreshFailed;
+        public bool LoginFailed;
     }
 
     // Immutable mode for tests / diagnostics. When Null, normal real behavior.

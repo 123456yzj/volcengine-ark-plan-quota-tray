@@ -370,7 +370,8 @@ namespace ArkLeft
             // NotLoggedIn can be retried after the user logs in, and also offers
             // the copy-login-command / open-guide actions.
             v.AllowRetry = true;
-            v.AllowCopyLogin = (status == QuotaStatus.NotLoggedIn);
+            v.AllowCopyLogin = (status == QuotaStatus.NotLoggedIn || status == QuotaStatus.LoginFailed
+                || status == QuotaStatus.TokenRefreshFailed || status == QuotaStatus.Unauthorized);
             v.AllowOpenGuide = (status == QuotaStatus.CliMissing || status == QuotaStatus.Failed
                                 || status == QuotaStatus.Timeout || status == QuotaStatus.FormatError
                                 || status == QuotaStatus.NotLoggedIn);

@@ -229,7 +229,7 @@ namespace ArkLeft.Tests
             }
 
             // ---- hidden-circle failed save: tray notify intent (offline has
-            // no real NotifyIcon); visible circle keeps the tooltip path ----
+            // no real NotifyIcon); visible circle uses the same tray path ----
             int fqueries = 0;
             using (TrayApp app = new TrayApp(delegate(IProgress<QueryProgress> progress,
                 System.Threading.CancellationToken token)
@@ -247,15 +247,15 @@ namespace ArkLeft.Tests
                 Check("prefs.hiddenFailText", app.LastLockFailTextForTest, "位置锁定状态未保存");
                 Check("prefs.hiddenFailZeroQuery", fqueries, 0);
 
-                // Circle visible: the tooltip path already covers it -> no
-                // tray notification intent, no query, state still kept old.
+                // Circle visible: failures still notify through the tray;
+                // no query, state still kept old.
                 app.OpenEntryForTest("circle");
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs.visibleNow", app.FloatingVisibleForTest, true);
                 app.PerformMenuLockForTest();
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs.visibleFailHint", app.LockHintForTest, "锁定状态未保存");
-                Check("prefs.visibleNoNotifyIntent", app.LockFailNotifyCountForTest, 1);
+                Check("prefs.visibleFailNotifyIntent", app.LockFailNotifyCountForTest, 2);
                 Check("prefs.visibleFailKeptUnlocked", app.FloatingLockedForTest, false);
                 Check("prefs.visibleZeroQuery", fqueries, 0);
             }
@@ -486,17 +486,16 @@ namespace ArkLeft.Tests
                 unknownForm.HideCircleForTest();
             }
 
-            // ---- shared tray menu: top level 3, the 设置 submenu holds the
-            // toggles, one handler, zero query, poll interval untouched ----
+            // Shared menu / preference handlers: zero query, poll interval untouched.
             int queries = 0;
             using (TrayApp app = new TrayApp(delegate(IProgress<QueryProgress> progress,
                 System.Threading.CancellationToken token)
                 { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
             {
                 app.HideDetailsForTest();
-                Check("prefs2.trayMenuCount", app.MenuItemCountForTest, 5);
-                Check("prefs2.trayContentOnly", app.MenuSettingsCountForTest, 1);
-                Check("prefs2.trayToggleShifted", app.MenuTextForTest(2), "隐藏悬浮窗");
+                Check("prefs2.trayMenuCount", app.MenuItemCountForTest, 4);
+                Check("prefs2.traySettingsCount", app.MenuSettingsCountForTest, 3);
+                Check("prefs2.trayToggleShifted", app.MenuTextForTest(1), "隐藏悬浮窗");
                 Check("prefs2.trayMotionDefaultUnchecked", app.MenuMotionCheckedForTest, false);
                 Check("prefs2.pollBaseUntouched", app.PollIntervalForTest, 300000);
                 app.PerformMenuMotionForTest(); // 减少动画
@@ -552,16 +551,16 @@ namespace ArkLeft.Tests
                 Check("prefs2.motionCounterUnchanged", app.MotionFailNotifyCountForTest, 1);
                 Check("prefs2.stillZeroQuery", mqueries, 0);
 
-                // Circle visible: the tooltip path covers the failure - no
-                // extra tray intent, zero query, poll cadence intact.
+                // Circle visible: failures still notify through the tray;
+                // zero query, poll cadence intact.
                 app.OpenEntryForTest("circle");
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs2.visibleNow", app.FloatingVisibleForTest, true);
                 app.PerformMenuMotionForTest();
                 System.Windows.Forms.Application.DoEvents();
                 Check("prefs2.visibleMotionHint", app.LockHintForTest, "动画设置未保存");
-                Check("prefs2.visibleNoMotionNotifyIntent",
-                    app.MotionFailNotifyCountForTest, 1);
+                Check("prefs2.visibleMotionNotifyIntent",
+                    app.MotionFailNotifyCountForTest, 2);
                 Check("prefs2.visibleMotionZeroQuery", mqueries, 0);
                 Check("prefs2.visiblePoll10s", app.PollIntervalForTest, 10000);
             }

@@ -19,7 +19,7 @@ namespace ArkLeft.Tests
                 app.OpenEntryForTest("circle");
                 app.ApplyViewForTest(SyntheticSample.BuildLarge());
                 FloatingCircleControl circle = app.CircleForTest;
-                Check("menu.circleHoverTooltipEmpty", circle.HoverTooltipForTest, "");
+                Check("menu.circleAccessibleDescription", circle.AccessibleDescription.Contains("AFP"), true);
                 ContextMenuStrip menu = app.MenuForTest;
                 ToolStripMenuItem settings = app.MenuSettingsForTest;
                 ToolStripMenuItem content = (ToolStripMenuItem)settings.DropDownItems[0];
@@ -248,12 +248,15 @@ namespace ArkLeft.Tests
                 { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
             {
                 app.HideDetailsForTest();
-                Check("ux023.topCount", app.MenuItemCountForTest, 5);
-                Check("ux023.topSettings", app.MenuTextForTest(1), "设置");
-                Check("ux023.topExit", app.MenuTextForTest(4), "退出 ark_left");
-                Check("ux023.submenuCount", app.MenuSettingsCountForTest, 1);
+                Check("ux023.topCount", app.MenuItemCountForTest, 4);
+                Check("ux023.topSettings", app.MenuTextForTest(0), "设置");
+                Check("ux023.topExit", app.MenuTextForTest(3), "退出 ark_left");
+                Check("ux023.submenuCount", app.MenuSettingsCountForTest, 3);
                 Check("ux023.submenuContent", app.MenuSettingsTextForTest(0), "悬浮内容");
-                Check("ux023.topToggle", app.MenuTextForTest(2), "隐藏悬浮窗");
+                Check("ux023.submenuLogout", app.MenuSettingsTextForTest(1), "登出");
+                Check("ux023.submenuLogin", app.MenuSettingsTextForTest(2), "重新登录");
+                Check("ux023.topToggle", app.MenuTextForTest(1), "隐藏悬浮窗");
+                Check("ux023.topDiagnostics", app.MenuTextForTest(2), "关于 / 诊断");
 
                 // Clicking 设置 expands the native side dropdown and NEVER opens
                 // the settings modal (zero query).

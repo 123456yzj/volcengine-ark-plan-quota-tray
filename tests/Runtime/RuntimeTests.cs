@@ -499,7 +499,7 @@ namespace ArkLeft.Tests
                     c("runtime.uiSwitchState." + behavior, app.DetailsFormForTest.Model.CurrentView.State, PanelState.ConfirmingIdentity);
                     app.RefreshForTest().GetAwaiter().GetResult();
                     c("runtime.uiSwitchBlocksQuery." + behavior, queries, 1);
-                    c("runtime.uiSwitchCancelMenu." + behavior, app.MenuTextForTest(0), "取消登录");
+                    c("runtime.uiSwitchCancelMenu." + behavior, app.MenuSettingsTextForTest(2), "取消登录");
                     if (behavior == "cancel") PumpUntil(app.LoginForTest());
                     else loginResult.SetResult(new CliResult { Started = true, TimedOut = behavior == "timeout",
                         ExitCode = behavior == "browser-fail" ? 1 : 0 });
@@ -508,7 +508,7 @@ namespace ArkLeft.Tests
                     c("runtime.uiLoginData." + behavior, app.DetailsFormForTest.Model.Last != null, behavior == "success");
                     c("runtime.uiLoginModelState." + behavior, app.DetailsFormForTest.Model.CurrentView.State,
                         behavior == "success" ? PanelState.ShowingCurrent : PanelState.Error);
-                    c("runtime.uiLoginMenuRestored." + behavior, app.MenuTextForTest(0), "登录方舟 / 重新登录 / 切换账号");
+                    c("runtime.uiLoginMenuRestored." + behavior, app.MenuSettingsTextForTest(2), "重新登录");
                 }
             }
             int evicted = 0;

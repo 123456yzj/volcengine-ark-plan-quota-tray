@@ -2,8 +2,8 @@
 # Reproducible, isolated integration check for the tray interaction flow.
 #
 # It starts the real ark_left.exe under an ISOLATED state dir, an ISOLATED
-# instance name suffix and a deliberately NON-EXISTENT ARK_LEFT_CLI (so the app
-# never reaches the network / real ArkCLI). It only ever touches windows and
+# instance name suffix and no direct login session (queries stay offline).
+# NON-EXISTENT ARK_LEFT_CLI isolates retained CLI capabilities. It only touches windows and
 # processes that belong to PIDs it started itself; it never signals, closes or
 # kills a normal user instance.
 #
@@ -120,7 +120,7 @@ function Start-Instance([string[]]$extraArgs) {
 try {
     $env:ARK_LEFT_STATE_DIR = $stateDir
     $env:ARK_LEFT_INSTANCE_SUFFIX = $suffix
-    # Non-existent CLI: keeps every query offline / deterministic.
+    # No direct session in the fresh state keeps quota queries offline; isolate CLI too.
     $env:ARK_LEFT_CLI = 'C:\ark_left_verify_missing\arkcli-does-not-exist.exe'
 
     Write-Host ("verify-interaction: suffix=" + $suffix)

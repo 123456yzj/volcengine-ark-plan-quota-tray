@@ -151,16 +151,15 @@ namespace ArkLeft
             if (_menuMotion != null) _menuMotion.Checked = _floating.ReduceMotion;
         }
 
-        // v0.8 UX016 fix: a failed lock save is already visible through the
-        // circle tooltip while the circle is shown; when it is hidden, surface
-        // a short tray balloon (fixed text, never a raw exception). Never
+        // A failed lock save uses a short tray balloon regardless of circle
+        // visibility (fixed text,
+        // never a raw exception). Never
         // opens the circle / details, never touches polling or queries; a
         // successful toggle never notifies. Offline tests have no real
         // NotifyIcon - they observe the intent through the counters below.
         private void OnLockSaveFailed()
         {
             if (_disposed) return;
-            if (_floating != null && _floating.CircleVisible) return;
             _lockFailNotifyCount++;
             _lastLockFailText = "位置锁定状态未保存";
             if (_notify == null) return;
@@ -174,13 +173,12 @@ namespace ArkLeft
 
         // v0.9 UX017: a failed reduce-motion save mirrors the lock path but
         // with DISTINCT fixed wording (never claims the lock failed). Circle
-        // visible -> the tooltip path covers it; hidden -> tray balloon
-        // intent. Never opens the circle / details, never touches polling or
+        // visibility does not change the tray balloon intent. Never opens the
+        // circle / details, never touches polling or
         // queries; a successful toggle never notifies.
         private void OnMotionSaveFailed()
         {
             if (_disposed) return;
-            if (_floating != null && _floating.CircleVisible) return;
             _motionFailNotifyCount++;
             _lastMotionFailText = "减少动画设置未保存";
             if (_notify == null) return;
@@ -193,13 +191,12 @@ namespace ArkLeft
         }
 
         // v0.15 UX023: a failed 悬浮内容 menu save mirrors the lock / motion
-        // path with DISTINCT fixed wording. Circle visible -> the tooltip path
-        // covers it; hidden -> tray balloon intent. Never opens the circle /
+        // path with DISTINCT fixed wording, always through a tray balloon.
+        // Never opens the circle /
         // details, never opens a modal, never queries.
         private void OnContentSaveFailed()
         {
             if (_disposed) return;
-            if (_floating != null && _floating.CircleVisible) return;
             _contentFailNotifyCount++;
             _lastContentFailText = "悬浮内容未保存";
             if (_notify == null) return;

@@ -202,7 +202,7 @@ namespace ArkLeft.Tests
                 Check("home.appAtHome", circle.Bounds,
                     FloatingCircleControl.InitialBounds(scr.WorkingArea, DpiUtil.GetScale(scr)));
                 Check("home.appZeroQuery", queries, 0);
-                Check("home.appToggleText", app.MenuTextForTest(2), "隐藏悬浮窗");
+                Check("home.appToggleText", app.MenuTextForTest(1), "隐藏悬浮窗");
                 Check("home.appPollVisible", app.PollIntervalForTest, 10000);
             }
 
@@ -227,7 +227,7 @@ namespace ArkLeft.Tests
                 Check("home.hiddenAppNoSave", app.LockFailNotifyCountForTest, 0);
                 Check("home.hiddenAppZeroQuery", queries2, 0);
                 Check("home.hiddenAppPollVisible", app.PollIntervalForTest, 10000);
-                Check("home.hiddenAppToggleText", app.MenuTextForTest(2), "隐藏悬浮窗");
+                Check("home.hiddenAppToggleText", app.MenuTextForTest(1), "隐藏悬浮窗");
             }
 
             // Settings modal up: a programmatic 归位 click must do NOTHING

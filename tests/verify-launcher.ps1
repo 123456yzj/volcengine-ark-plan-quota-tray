@@ -2,8 +2,9 @@
 #
 # Isolation contract (same conventions as tests/verify-interaction.ps1):
 #   ARK_LEFT_STATE_DIR       -> fresh temp state dir, pre-seeded with a
-#                               first-run marker + state cache + selection
-#                               files that must survive byte-identically;
+#                               first-run marker + selection files that must
+#                               survive byte-identically; direct NotLoggedIn
+#                               deliberately evicts the seeded quota cache;
 #   ARK_LEFT_INSTANCE_SUFFIX -> unique per-run suffix (isolated single-instance
 #                               mutex Local\ark_left_single_instance_<suffix>
 #                               and show event; never the real user names);
@@ -15,7 +16,7 @@
 # have closed them themselves). The finally block closes ONLY PIDs this script
 # started: gentle WM_QUIT first, Kill purely as a last resort.
 
-param([string]$OutputDir = 'bin-v10')
+param([string]$OutputDir = 'bin-v21')
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Definition)
@@ -225,8 +226,8 @@ try {
 
     Write-Host ("verify-launcher: suffix=" + $suffix)
 
-    # Pre-seed state: first-run marker + state cache + selection files. Neither
-    # the v05 fixture nor bin-v10 may ever rewrite / delete them.
+    # Preferences/marker must survive. The deliberately invalid quota cache is
+    # evicted by the direct app because this isolated state has no login session.
     New-Item -ItemType Directory -Path $stateDir | Out-Null
     Set-Content -LiteralPath (Join-Path $stateDir 'first-run.done') -Value 'version=0.5.0.0 date=2026-10-04' -Encoding ASCII
     Set-Content -LiteralPath (Join-Path $stateDir 'floating-preferences.json') -Value '{"Version":2,"PositionLocked":false,"ReduceMotion":false}' -Encoding ASCII
@@ -273,12 +274,15 @@ try {
         else { Write-Host ('ok: new ' + $OutputDir + ' instance visible') }
     }
 
-    # ---- 3) first-run marker + state cache + selection files preserved ----
+    # ---- 3) preferences preserved; direct unauthenticated cache evicted ----
     $after1 = Get-StateHashes $stateDir
-    foreach ($name in @('first-run.done', 'floating-preferences.json', 'floating-settings.json', 'quota-cache.dat')) {
+    foreach ($name in @('first-run.done', 'floating-preferences.json', 'floating-settings.json')) {
         if ($after1[$name] -ne $before[$name]) { Fail ('state file changed during replacement: ' + $name) }
     }
-    if ($script:failures -eq 0) { Write-Host 'ok: marker / cache / selection files byte-identical after replacement' }
+    $directTarget = [Reflection.AssemblyName]::GetAssemblyName($exe).Version -ge [Version]'0.16.0.0'
+    $expectedCache = if ($directTarget) { '<missing>' } else { $before['quota-cache.dat'] }
+    if ($after1['quota-cache.dat'] -ne $expectedCache) { Fail 'quota cache did not follow the target authentication contract' }
+    if ($script:failures -eq 0) { Write-Host 'ok: marker / selection preserved; quota cache follows authentication contract' }
 
     # ---- 4) same-version relaunch reuses the original pid ----
     if ($newPid -gt 0) {

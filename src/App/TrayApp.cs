@@ -24,9 +24,7 @@ namespace ArkLeft
         private ToolStripMenuItem _menuMotion;
         // v0.12 UX020: "悬浮窗归位" shared menu item (after 减少动画).
         private ToolStripMenuItem _menuHome;
-        // v0.15 UX023: the 设置 submenu and its 悬浮内容 chooser; the top
-        // level is only [设置, 退出] and the shared menu no longer routes to
-        // the settings modal.
+        // Shared 设置 submenu: content selection and account actions.
         private ToolStripMenuItem _menuSettings;
         private ToolStripMenuItem _menuContent;
         private bool _menuSettingsDropDownRequested;
@@ -45,9 +43,14 @@ namespace ArkLeft
         private PopupForm _form;
         private FloatingQuotaForm _floating;
         private QuotaCli _cli;
+        private DirectAgentPlan _direct;
         private readonly Func<CancellationToken, Task<CliResult>> _loginAction;
+        private readonly Func<CancellationToken, Task<CliResult>> _logoutAction;
         private ToolStripMenuItem _menuLogin;
+        private ToolStripMenuItem _menuLogout;
         private CancellationTokenSource _login;
+        private Task _loginTask;
+        private bool _loggingOut;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly System.Windows.Forms.Timer _runtimeTimer = new System.Windows.Forms.Timer();
         private SnapshotController _controller;
@@ -64,11 +67,14 @@ namespace ArkLeft
         // to exercise the tray-notification path without any real state file.
         internal TrayApp(Func<IProgress<QueryProgress>, CancellationToken, Task<QueryOutcome>> query,
             Func<FloatingPreferences, bool> prefsSaveOverride,
-            Func<CancellationToken, Task<CliResult>> loginOverride = null)
+            Func<CancellationToken, Task<CliResult>> loginOverride = null,
+            Func<CancellationToken, Task<CliResult>> logoutOverride = null)
         {
-            if (query == null) _cli = new QuotaCli(null);
-            _loginAction = loginOverride ?? (_cli == null ? null
-                : new Func<CancellationToken, Task<CliResult>>(_cli.LoginAsync));
+            if (query == null) { _cli = new QuotaCli(null); _direct = new DirectAgentPlan(); }
+            _loginAction = loginOverride ?? (_direct == null ? null
+                : new Func<CancellationToken, Task<CliResult>>(_direct.LoginAsync));
+            _logoutAction = logoutOverride ?? (_direct == null ? null
+                : new Func<CancellationToken, Task<CliResult>>(_direct.LogoutAsync));
             _form = new PopupForm();
             // The circle consumes the SAME PanelView. Offline tests inject
             // null-returning / no-op preference callbacks so no real preference
@@ -104,7 +110,7 @@ namespace ArkLeft
                 SyncLockChecked();
             };
             _floating.MotionSaveFailed += delegate { OnMotionSaveFailed(); };
-            _controller = new SnapshotController(_form.Model, query ?? _cli.QueryDetailedAsync,
+            _controller = new SnapshotController(_form.Model, query ?? _direct.QueryDetailedAsync,
                 delegate(PanelView v)
                 {
                     _form.ApplyModelView(v); _floating.ApplyModelView(v);
@@ -146,7 +152,7 @@ namespace ArkLeft
             // tests so the real menu / settings path is exercised; only the
             // NotifyIcon / tray registration / IPC stay production-only.
             _menu = new ContextMenuStrip();
-            // The settings submenu exposes only content selection. Preference
+            // The settings submenu exposes content selection and account actions. Preference
             // handlers remain available to existing callers without menu entries.
             _menuSettings = new ToggleMenuItem("设置");
             _menuContent = new ToggleMenuItem("悬浮内容");
@@ -183,10 +189,12 @@ namespace ArkLeft
             _menu.Items.Add(_menuSettings);
             _menu.Items.Add(_menuToggle);
             _menu.Items.Add("退出 ark_left", null, delegate { ExitApp(); });
-            _menuLogin = new ToolStripMenuItem("登录方舟 / 重新登录 / 切换账号", null,
+            _menuLogout = new ToolStripMenuItem("登出", null, async delegate { await Logout(); });
+            _menuLogin = new ToolStripMenuItem("重新登录", null,
                 async delegate { await Login(); });
-            _menu.Items.Insert(0, _menuLogin);
-            _menu.Items.Insert(3, new ToolStripMenuItem("关于 / 诊断", null, delegate { ShowRuntimeDiagnostics(); }));
+            _menuSettings.DropDownItems.Add(_menuLogout);
+            _menuSettings.DropDownItems.Add(_menuLogin);
+            _menu.Items.Insert(2, new ToolStripMenuItem("关于 / 诊断", null, delegate { ShowRuntimeDiagnostics(); }));
             UiStyle.StyleMenu(_menu);
             _floating.SetContextMenuStrip(_menu);
             UiStyle.AttachFloatingMenu(_menu, _menuSettings, _menuContent,
@@ -339,6 +347,7 @@ namespace ArkLeft
             _runtimeTimer.Stop(); _lifetime.Cancel();
             if (_login != null) _login.Cancel();
             _controller.Dispose();
+            if (_direct != null) _direct.Dispose();
             try { if (_cli != null) _cli.KillActive(); } catch (Exception) { }
             if (_notify != null) _notify.Visible = false;
             if (_floating != null)
@@ -373,6 +382,7 @@ namespace ArkLeft
                 if (_menuHome != null) _menuHome.Dispose();
                 try { if (_trayIcon != null) _trayIcon.Dispose(); } catch (Exception) { }
                 try { if (_cli != null) _cli.Dispose(); } catch (Exception) { }
+                try { if (_direct != null) _direct.Dispose(); } catch (Exception) { }
                 try { if (_form != null) _form.Dispose(); } catch (Exception) { }
                 _notify = null; _menu = null; _trayIcon = null; _cli = null; _form = null;
                 _floating = null;

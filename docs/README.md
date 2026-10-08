@@ -6,10 +6,11 @@
 
 | 文档 | 用途 | 默认读取 |
 | --- | --- | --- |
-| [`requirements/product-requirements.md`](requirements/product-requirements.md) | 正式业务需求 v0.1（R001–R004） | 业务相关时局部读取 |
-| [`requirements/interaction-improvements.md`](requirements/interaction-improvements.md) | 当前交互层；现为 v0.15.1 UX023 | 交互相关时局部读取 |
+| [`requirements/product-requirements.md`](requirements/product-requirements.md) | 正式业务需求 v0.5（R001–R004） | 业务相关时局部读取 |
+| [`requirements/interaction-improvements.md`](requirements/interaction-improvements.md) | 当前交互层；现为 v0.18.1 UX026 | 交互相关时局部读取 |
 | [`implementation-gaps.md`](implementation-gaps.md) | 实现差异与限制 | 核对需求覆盖或验收边界时 |
 | [`contracts.md`](contracts.md) | 数据与接口契约 | 契约相关时局部读取 |
+| [`direct-agent-plan.md`](direct-agent-plan.md) | Agent Plan 个人版直连登录、续期、额度查询与检查 | 个人额度认证/查询相关时 |
 | [`tasks.md`](tasks.md) | 跨会话未完成事项、下一步与完成条件 | 跟进未完成事项时 |
 | [`decisions.md`](decisions.md) | 有长期影响的重要决定 | 有具体决策疑点时 |
 | [`verification.md`](verification.md) | 有交付价值的验证证据 | 验收/发布时按需 |

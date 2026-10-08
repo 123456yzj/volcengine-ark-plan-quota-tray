@@ -47,7 +47,6 @@ namespace ArkLeft
         private readonly Timer _wave = new Timer();
         private Font _percentFont;
         private Font _captionFont;
-        private readonly ToolTip _tip = new ToolTip();
         private Region _region;
         private double _scale = 1.0;
         private float _phase;
@@ -61,7 +60,6 @@ namespace ArkLeft
         private bool _amountKnown;
         private double _amount;
         private string _amountText = "";
-        private string _tooltip = "暂无数据";
 
         private bool _down;
         private bool _dragging;
@@ -141,6 +139,7 @@ namespace ArkLeft
             DoubleBuffered = true;
             Text = "方舟剩余额度";
             AccessibleName = "方舟剩余额度悬浮圆圈";
+            AccessibleDescription = "暂无数据";
             BuildFonts(1.0);
             _wave.Interval = 60;
             _wave.Tick += delegate { _phase += 0.22f; if (Visible) Invalidate(); };
@@ -278,8 +277,9 @@ namespace ArkLeft
             _amount = d == null ? 0 : d.RemainingAmount;
             _amountText = !_hasData ? "" : _amountKnown
                 ? DisplayNames.Number(_amount) + " AFP" : "AFP 未知";
-            _tooltip = d == null ? "暂无数据" : (d.Tooltip ?? "");
-            if (_hasData) _tooltip += "\n" + _amountText;
+            string description = d == null ? "暂无数据" : (d.Tooltip ?? "");
+            if (_hasData) description += "\n" + _amountText;
+            AccessibleDescription = description;
             UpdateWaveState();
             if (Visible) Invalidate();
         }
@@ -300,16 +300,6 @@ namespace ArkLeft
             {
                 _wave.Stop();
             }
-        }
-
-        // v0.8 UX016: a short readable status (never a raw exception) surfaced
-        // through the existing tooltip. Safe when the handle is not created
-        // (offline tests only observe state); failures are swallowed.
-        public void ShowStatusHint(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-            try { _tip.Show(text, this, Width / 2, Height, 2500); }
-            catch (Exception) { }
         }
 
         // ---- drag / click ----
@@ -659,7 +649,6 @@ namespace ArkLeft
                 try { _wave.Stop(); _wave.Dispose(); } catch (Exception) { }
                 try { if (_region != null) { _region.Dispose(); _region = null; } }
                 catch (Exception) { }
-                try { _tip.Dispose(); } catch (Exception) { }
                 try { _percentFont.Dispose(); } catch (Exception) { }
                 try { _captionFont.Dispose(); } catch (Exception) { }
             }
@@ -675,8 +664,7 @@ namespace ArkLeft
         internal string FittedAmountTextForTest { get { return FittedAmountText; } }
         internal Rectangle AmountBoundsForTest { get { return AmountBounds; } }
         internal Font AmountFontForTest { get { return _captionFont; } }
-        internal string TooltipForTest { get { return _tooltip; } }
-        internal string HoverTooltipForTest { get { return _tip.GetToolTip(this); } }
+        internal string TooltipForTest { get { return AccessibleDescription; } }
         internal bool DraggingForTest { get { return _dragging; } }
 
         // Dispatch through the PRODUCTION mouse handlers so the real drag

@@ -113,14 +113,13 @@ namespace ArkLeft.Tests
 
                 Check("trayApp.circleToggleZeroQuery", queries, 0);
 
-                // The shared menu exposes settings, visibility and exit;
-                // settings contains only the content chooser.
-                Check("trayApp.menuPresent", app.MenuItemCountForTest, 5);
-                Check("trayApp.menuTopSettings", app.MenuTextForTest(1), "设置");
-                Check("trayApp.menuTopExit", app.MenuTextForTest(4), "退出 ark_left");
-                Check("trayApp.submenuCount", app.MenuSettingsCountForTest, 1);
+                // Account actions live inside the shared settings submenu.
+                Check("trayApp.menuPresent", app.MenuItemCountForTest, 4);
+                Check("trayApp.menuTopSettings", app.MenuTextForTest(0), "设置");
+                Check("trayApp.menuTopExit", app.MenuTextForTest(3), "退出 ark_left");
+                Check("trayApp.submenuCount", app.MenuSettingsCountForTest, 3);
                 Check("trayApp.menuHasContent", app.MenuSettingsTextForTest(0), "悬浮内容");
-                Check("trayApp.menuHasToggle", app.MenuTextForTest(2), "隐藏悬浮窗");
+                Check("trayApp.menuHasToggle", app.MenuTextForTest(1), "隐藏悬浮窗");
                 app.ShowDetailsForTest(); // left-click details path, zero query
                 System.Windows.Forms.Application.DoEvents();
                 Check("trayApp.menuViewZeroQuery", queries, 0);

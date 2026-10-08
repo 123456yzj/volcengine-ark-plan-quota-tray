@@ -1,17 +1,17 @@
 # 数据与接口契约
 
-上游解析契约 **v0.1**；额度快照格式 **1**；悬浮选择格式 **1**；悬浮偏好格式 **2**。当前交互以 [交互需求](requirements/interaction-improvements.md) 为准。格式、字段或间隔变化需同步提升对应契约版本。
+上游解析契约 **v0.2**；额度快照格式 **1**；悬浮选择格式 **1**；悬浮偏好格式 **2**。Agent Plan 个人版生产链路以 [直连契约](direct-agent-plan.md) 为准；下述 CLI auth/viewer 和 items 解析保留为兼容契约。当前交互以 [交互需求](requirements/interaction-improvements.md) 为准。
 
-auth / usage 字段来自 2026-10-03–04 的真实脱敏查询；真实确认了 Agent Plan，其他套餐主要由合成用例覆盖。Managed Runtime、应用内登录、自动更新 / 回滚等均为计划 / 待验收，尚未进入当前分支实现；差异见 [implementation-gaps.md](implementation-gaps.md)，生命周期方案见 [managed-runtime.md](managed-runtime.md)。
+CLI auth / usage 字段来自 2026-10-03–04 的真实脱敏查询；GetAFPUsage 字段与 SSO / refresh grant 于 2026-10-07 真实验证。其他套餐主要由合成用例覆盖；其验收边界见 [implementation-gaps.md](implementation-gaps.md)，保留的 Runtime 生命周期方案见 [managed-runtime.md](managed-runtime.md)。
 
 ## 调用与进程
 
-- 认证闸门为 `auth status --format json`：退出码为 0 且顶层 `logged_in` 为布尔 `true` 才查询额度。`false` 为未登录；缺失或非布尔为格式错误；非零退出、启动失败、超时与取消分别处理。
-- 当前分支业务查询为 `usage plan --format json`，默认发现订阅；Runtime 计划须保留该方式并覆盖正式 Agent Plan / Coding Plan 范围。
+- Agent Plan 个人版认证为浏览器 Authorization Code + PKCE S256 / 手动粘贴完整 localhost 回调 URL，不启动回调监听；查询为临时 STS 签名的 `GetAFPUsage`，不调用 ArkCLI。具体流程、校验、加密存储和错误分类见 [直连契约](direct-agent-plan.md)。
+- CLI 兼容认证闸门为 `auth status --format json`：退出码为 0 且顶层 `logged_in` 为布尔 `true` 才查询额度。其他 ArkCLI 能力不在本次切换范围内。
 - 仅调用原生 `.exe`，不托管 `.ps1` shim。当前分支解析顺序为存在的绝对 `ARK_LEFT_CLI` 路径 → PATH / npm 对应架构的原生 exe；无效覆盖明确失败。Managed Runtime 为计划 / 待验收，尚未进入当前分支实现。
 - 子进程 `UseShellExecute=false`、`CreateNoWindow=true`、UTF8，异步读取 stdout / stderr，有界等待退出。普通查询每命令 30 秒超时；auth 与 usage 顺序执行，总耗时可能超过 60 秒。
 - 超时、取消或退出终止活动子进程；Dispose 后不再启动。非零退出不能当作成功。auth / usage 两阶段持有同一个 Runtime lease 的托管查询流程为计划 / 待验收，尚未进入当前分支实现。
-- 当前分支应用提供复制登录命令，由用户在终端登录；应用内登录为计划 / 待验收，尚未进入当前分支实现，拟使用 `auth login volc-sso` 并设 10 分钟超时。
+- 应用内“设置 → 重新登录”走直连浏览器 SSO，等待上限 10 分钟，可取消。“设置 → 登出”取消活动登录、查询和续期，清除本项目登录凭据与额度缓存；删除凭据失败明确报告未完成。两项账号操作只放在共享菜单的设置子菜单，具体并发边界见直连契约。
 
 ## 身份与 scope
 
@@ -29,7 +29,7 @@ owner_trn 只接受 `trn:iam::<account>:root` 或 `trn:iam::<account>:user/<id>`
 - **Mismatch**：存在具体冲突，包括子用户 auth 对明确的 root viewer。
 - **Unknown**：缺字段或无法确认；不证明身份不同。
 
-原始身份只在解析内存中使用，不展示、不落盘；不可逆指纹用于缓存归属并可存入加密快照，不展示。测试用合成匿名 fixture。
+原始身份只在解析内存中使用，不展示、不落盘；不可逆指纹用于缓存归属并可存入加密快照，不展示。直连会话使用随机登录绑定形成 SHA256 scope，续期保持、重新网页登录更换；其 Result 与发起签名的会话直接绑定，不构造 CLI viewer。测试用合成匿名 fixture。
 
 ## usage 数据与数值
 
@@ -101,8 +101,8 @@ Version 必须为整数 1；key / label 必须为非空字符串，长度分别�
 
 ## 本地启动与实例替换
 
-- 入口为 `start.cmd` → `launch.ps1`（当前默认 `-OutputDir bin-v15`）→ `bin-v15\ark_left.exe --show`。目标 exe 缺失时由 build.ps1 构建到目标目录。
-- 目标必须为项目根下一级 `bin`、`bin-release` 或 `bin-vN`。当前旧实例清单明确枚举 `bin`、`bin-release`、`bin-v04`–`bin-v14`，排除目标本身；不是任意 `bin-vN` 都会被关闭。
+- 入口为 `start.cmd` → `launch.ps1`（当前默认 `-OutputDir bin-v16`）→ `bin-v16\ark_left.exe --show`。目标 exe 缺失时由 build.ps1 构建到目标目录。
+- 目标必须为项目根下一级 `bin`、`bin-release` 或 `bin-vN`。当前旧实例清单明确枚举 `bin`、`bin-release`、`bin-v04`–`bin-v15`，排除目标本身；不是任意 `bin-vN` 都会被关闭。
 - 实例须同时满足进程名 `ark_left`、完整主模块路径在白名单、文件名 `ark_left.exe`。名字只用于发现候选，项目外已确认路径的同名实例跳过；无法核实路径则失败。
 - 旧版经 EnumWindows / GetWindowThreadProcessId 定位唯一 GUI 线程（含隐藏窗口），只投递一次 WM_QUIT，应用退出消息循环后自行 Cleanup；每实例等待最多 10 秒。不能定位唯一线程、超时或身份验证失败时非零退出，不启动新 exe；不强杀或覆盖活动二进制。
 - 同目标版本不关闭，另启动 `--show` 经 `Local\ark_left_show_event`（含实例后缀）IPC 唤起，原实例继续驻留。

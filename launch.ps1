@@ -22,7 +22,7 @@
 # exit code 1; success exits 0.
 
 param(
-    [string]$OutputDir = 'bin-v15',
+    [string]$OutputDir = 'bin-v21',
     [switch]$NoLaunch,
     [int]$PreviousProcessId = 0
 )
@@ -103,9 +103,9 @@ if ($targetName -notmatch '^(bin|bin-release|bin-v[0-9]+)$') {
 }
 $targetExe = Join-Path $fullTarget 'ark_left.exe'
 
-# Old dirs per UX018 (+bin-v13 per UX022, +bin-v14 added): bin / bin-release / bin-v04..bin-v14.
+# Old dirs per UX018, including the previous v0.15 build.
 # If the target IS one of them, its instances are same-version (reuse), never "old".
-$oldDirNames = @('bin', 'bin-release', 'bin-v04', 'bin-v05', 'bin-v06', 'bin-v07', 'bin-v08', 'bin-v09', 'bin-v10', 'bin-v11', 'bin-v12', 'bin-v13', 'bin-v14')
+$oldDirNames = @('bin', 'bin-release', 'bin-v04', 'bin-v05', 'bin-v06', 'bin-v07', 'bin-v08', 'bin-v09', 'bin-v10', 'bin-v11', 'bin-v12', 'bin-v13', 'bin-v14', 'bin-v15', 'bin-v16', 'bin-v17', 'bin-v18', 'bin-v19', 'bin-v20')
 $oldDirNames = @($oldDirNames | Where-Object { $_ -ine $targetName })
 
 function Test-WhitelistedExe([string]$exePath) {

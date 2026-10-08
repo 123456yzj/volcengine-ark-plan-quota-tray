@@ -1,4 +1,4 @@
-# check.ps1 - builds (if needed) and runs the real, sanitized CLI diagnostic.
+# check.ps1 - builds (if needed) and runs the real, sanitized direct-query diagnostic.
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Definition

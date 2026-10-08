@@ -28,6 +28,20 @@ namespace ArkLeft.Tests
                     foreach (string failure in _failures) Console.WriteLine(failure);
                     return _failed == 0 ? 0 : 1;
                 }
+                if (args.Length == 1 && args[0] == "--direct")
+                {
+                    DirectCases();
+                    Console.WriteLine("direct: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
+                if (args.Length == 1 && args[0] == "--direct-live-ui")
+                {
+                    DirectLiveUiCases();
+                    Console.WriteLine("direct-live-ui: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
                 if (args.Length == 1 && args[0] == "--menu-interaction")
                 {
                     MenuInteractionCases();
@@ -58,6 +72,21 @@ namespace ArkLeft.Tests
                     FloatingWindowCases();
                     FloatingTrayAppCases();
                     Console.WriteLine("floating-amount: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
+                if (args.Length == 1 && args[0] == "--floating-antialias")
+                {
+                    FloatingAntialiasCases();
+                    Console.WriteLine("floating-antialias: passed " + _passed + ", failed " + _failed);
+                    foreach (string failure in _failures) Console.WriteLine(failure);
+                    return _failed == 0 ? 0 : 1;
+                }
+                if (args.Length == 1 && args[0] == "--floating-antialias-after-login")
+                {
+                    DirectCases();
+                    FloatingAntialiasCases();
+                    Console.WriteLine("floating-antialias-after-login: passed " + _passed + ", failed " + _failed);
                     foreach (string failure in _failures) Console.WriteLine(failure);
                     return _failed == 0 ? 0 : 1;
                 }
@@ -97,6 +126,7 @@ namespace ArkLeft.Tests
             CliAuthGate();
             CliUsageExitCode();
             CliTimeoutCancelDispose();
+            DirectCases();
             RuntimeTests.Run(Check);
             DisplayNameMapping();
             LayoutMathBounds();
