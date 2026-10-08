@@ -110,42 +110,6 @@ namespace ArkLeft
             }
         }
 
-        private void ShowRuntimeDiagnostics()
-        {
-            if (_disposed || _cli == null) return;
-            using (Form dialog = new Form())
-            {
-                dialog.Text = "ark_left ArkCLI 组件诊断"; dialog.StartPosition = FormStartPosition.CenterParent;
-                dialog.ClientSize = new Size(430, 235); dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
-                dialog.MaximizeBox = false; dialog.MinimizeBox = false;
-                Label label = new Label { AutoSize = false, Bounds = new Rectangle(20, 20, 390, 130) };
-                Action display = delegate {
-                    CliResolveResult resolved = QuotaCli.Resolve(_cli.RuntimeManager);
-                    ArkCliRuntimeState state = _cli.RuntimeManager.State;
-                    label.Text = "ArkCLI Runtime：" + (resolved.Runtime == null ? "未知" : resolved.Runtime.Version)
-                        + "\r\n来源：" + (resolved.Runtime != null ? "Managed" : resolved.IsUsable ? "开发覆盖 / System" : "不可用")
-                        + "\r\n状态：" + _cli.RuntimeManager.LastError
-                        + "\r\n上次更新检查（UTC）：" + (state.lastCheckAt ?? "尚未检查")
-                        + "\r\n待激活版本：" + (state.pendingVersion ?? "无");
-                };
-                display(); dialog.Controls.Add(label);
-                Button check = new Button { Text = "检查组件更新", Bounds = new Rectangle(20, 165, 120, 32) };
-                check.Click += async delegate {
-                    check.Enabled = false;
-                    ArkCliRuntimeManager manager = _cli.RuntimeManager;
-                    CancellationToken token = _lifetime.Token;
-                    try { await Task.Run(() => manager.CheckForUpdateAsync(token)); }
-                    finally { if (!dialog.IsDisposed && !_disposed) { display(); check.Enabled = true; } }
-                };
-                dialog.Controls.Add(check);
-                Label ttl = new Label { Text = "每 24 小时最多联网检查一次", AutoSize = true, Location = new Point(155, 173) };
-                dialog.Controls.Add(ttl);
-                _form.SetDialogOpen(true);
-                try { dialog.ShowDialog(_aboutDialog != null ? (IWin32Window)_aboutDialog : _floating.CircleSurface); }
-                finally { if (!_disposed && _aboutDialog == null) _form.SetDialogOpen(false); }
-            }
-        }
-
         // One UI commit from the authoritative final outcome, independent of Progress.
         internal static void ApplyFinalOutcome(PopupForm form, QueryOutcome outcome)
         {

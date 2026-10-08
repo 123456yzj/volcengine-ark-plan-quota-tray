@@ -1,5 +1,5 @@
 # Exercise the real installer in an isolated directory, including upgrade and uninstall.
-param([string]$Installer = 'dist\ark_left-0.21.0-windows-setup.exe')
+param([string]$Installer = 'dist\ark_left-0.23.0-windows-setup.exe')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Definition)
 if (-not [System.IO.Path]::IsPathRooted($Installer)) { $Installer = Join-Path $root $Installer }
@@ -31,11 +31,12 @@ function Invoke-Setup([string]$LogName) {
 
 try {
     Invoke-Setup 'install.log'
-    foreach ($relative in @('ark_left.exe', 'ark_left-check.exe', 'runtime-bootstrap\amd64\arkcli.exe', 'runtime-bootstrap\arm64\arkcli.exe', 'third_party\ark-cli-LICENSE.txt', 'docs\setup.md', 'unins000.exe')) {
+    foreach ($relative in @('ark_left.exe', 'ark_left-check.exe', 'docs\setup.md', 'unins000.exe')) {
         if (-not (Test-Path -LiteralPath (Join-Path $installDir $relative) -PathType Leaf)) { throw "missing installed file: $relative" }
     }
     if (-not (Test-Path -LiteralPath $registration)) { throw 'uninstall registration missing' }
     if (Test-Path -LiteralPath (Join-Path $installDir 'ark_left-tests.exe')) { throw 'test runner must not be distributed' }
+    if (Test-Path -LiteralPath (Join-Path $installDir 'runtime-bootstrap')) { throw 'ArkCLI must not be distributed' }
     $shortcutPath = Join-Path $groupDir 'ark_left.lnk'
     if (-not (Test-Path -LiteralPath $shortcutPath)) { throw 'Start menu shortcut missing' }
     $shell = New-Object -ComObject WScript.Shell
@@ -50,10 +51,23 @@ try {
     if (-not $?) { throw 'installed application interaction check failed' }
     Write-Host 'PASS: installed application startup, hide, single-instance wake and exit'
 
+    # Simulate the exact bundled paths left by a previous installation. The
+    # upgrade must remove these files while retaining unrelated user files.
+    foreach ($legacyArch in @('amd64', 'arm64')) {
+        $legacyDir = Join-Path $installDir "runtime-bootstrap\$legacyArch"
+        [System.IO.Directory]::CreateDirectory($legacyDir) | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $legacyDir 'arkcli.exe'), 'legacy bundled runtime fixture')
+    }
+    $runtimeUserFile = Join-Path $installDir 'runtime-bootstrap\user-notes.txt'
+    [System.IO.File]::WriteAllText($runtimeUserFile, 'preserve unrelated user file')
     Invoke-Setup 'upgrade.log'
     if ((Get-FileHash -LiteralPath (Join-Path $installDir 'ark_left.exe') -Algorithm SHA256).Hash -ne $buildHash) { throw 'upgrade changed application bytes' }
     if ([System.IO.File]::ReadAllText($sentinel) -ne 'installer must preserve user data') { throw 'upgrade changed user state' }
-    Write-Host 'PASS: reinstall / upgrade at the same path preserves user data'
+    foreach ($legacyArch in @('amd64', 'arm64')) {
+        if (Test-Path -LiteralPath (Join-Path $installDir "runtime-bootstrap\$legacyArch\arkcli.exe")) { throw 'upgrade left legacy bundled ArkCLI' }
+    }
+    if ([System.IO.File]::ReadAllText($runtimeUserFile) -ne 'preserve unrelated user file') { throw 'upgrade removed unrelated user file' }
+    Write-Host 'PASS: upgrade removes legacy bundled runtime and preserves user data'
 
     $uninstallLog = Join-Path $testRoot 'uninstall.log'
     $uninstaller = Start-Process -FilePath (Join-Path $installDir 'unins000.exe') -ArgumentList ('/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG="' + $uninstallLog + '"') -Wait -PassThru

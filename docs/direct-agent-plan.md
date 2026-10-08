@@ -1,6 +1,6 @@
-# Agent Plan 个人额度直连（v0.21）
+# Agent Plan 个人额度直连（v0.23）
 
-生产托盘与 `ark_left-check.exe` 使用 `DirectAgentPlan`，登录和额度查询不调用 ArkCLI。其他 ArkCLI Runtime 诊断、版本检查、更新、回滚及独立 Runtime 工具保留；旧 CLI 解析/查询测试仍作为兼容回归用例。
+生产托盘与 `ark_left-check.exe` 使用 `DirectAgentPlan`，登录和额度查询不调用 ArkCLI。v0.23 不分发 ArkCLI，托盘不构造其 Runtime 管理器或启动组件维护，也不显示组件诊断。旧 CLI 解析、查询及 Runtime 代码保留为开发兼容回归，独立诊断工具的显式 Runtime 参数仍仅用于开发。
 
 ## 登录与续期
 

@@ -1,5 +1,7 @@
 # Managed ArkCLI Runtime
 
+v0.23 状态：本文件为历史设计参考。生产托盘已移除组件维护与诊断，构建和安装包不要求或分发 ArkCLI。源码保留兼容实现和专项回归；`prepare-bootstrap.ps1` 仅是显式开发工具，生成的文件被 Git 忽略。以下历史方案不属于当前交付要求。
+
 Managed Runtime、自带 bootstrap、应用内登录、自动更新 / 回滚等均为**计划 / 待验收，尚未进入当前分支实现**。本文以下目录、调用、登录、更新、回滚和分发规则均为设计目标；当前分支使用本机 ArkCLI，登录由用户在终端完成。与已接受业务 / 交互基线的差异见 [implementation-gaps.md](implementation-gaps.md)。
 
 计划使用自带、托管的 ArkCLI，发布包拟包含官方 1.0.37

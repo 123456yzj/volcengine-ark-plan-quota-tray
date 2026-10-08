@@ -2,6 +2,7 @@
 /bin/
 /bin-*/
 /dist/
+/runtime-bootstrap/
 
 # local editor / OS artifacts
 *.user

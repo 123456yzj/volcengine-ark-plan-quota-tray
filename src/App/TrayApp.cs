@@ -42,7 +42,6 @@ namespace ArkLeft
         private string _lastContentFailText;
         private PopupForm _form;
         private FloatingQuotaForm _floating;
-        private QuotaCli _cli;
         private DirectAgentPlan _direct;
         private readonly Func<CancellationToken, Task<CliResult>> _loginAction;
         private readonly Func<CancellationToken, Task<CliResult>> _logoutAction;
@@ -52,7 +51,6 @@ namespace ArkLeft
         private Task _loginTask;
         private bool _loggingOut;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
-        private readonly System.Windows.Forms.Timer _runtimeTimer = new System.Windows.Forms.Timer();
         private readonly System.Windows.Forms.Timer _appUpdateTimer = new System.Windows.Forms.Timer();
         private readonly Version _appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         private readonly Func<CancellationToken, Task<AppUpdateResult>> _checkAppUpdate;
@@ -81,7 +79,7 @@ namespace ArkLeft
             _openAppRelease = openReleaseOverride ?? delegate(string url) {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
             };
-            if (query == null) { _cli = new QuotaCli(null); _direct = new DirectAgentPlan(); }
+            if (query == null) _direct = new DirectAgentPlan();
             _loginAction = loginOverride ?? (_direct == null ? null
                 : new Func<CancellationToken, Task<CliResult>>(_direct.LoginAsync));
             _logoutAction = logoutOverride ?? (_direct == null ? null
@@ -248,17 +246,6 @@ namespace ArkLeft
             _notify.MouseDown += OnTrayMouseDown;
             _notify.MouseClick += OnTrayClick;
 
-            // Runtime maintenance runs independently of quota polling and after UI is ready.
-            _runtimeTimer.Interval = 15000;
-            _runtimeTimer.Tick += async delegate {
-                _runtimeTimer.Interval = 3600000;
-                if (_disposed || _cli == null) return;
-                ArkCliRuntimeManager manager = _cli.RuntimeManager;
-                CancellationToken token = _lifetime.Token;
-                await Task.Run(() => manager.CheckForUpdateAsync(token));
-            };
-            _runtimeTimer.Start();
-
             // Isolated IPC instances used by integration tests do not perform
             // automatic app-version requests. Manual checks share the same path.
             if (string.IsNullOrEmpty(InstanceSuffix))
@@ -367,12 +354,11 @@ namespace ArkLeft
         private void ExitApp()
         {
             _poll.Stop();
-            _runtimeTimer.Stop(); _appUpdateTimer.Stop(); _lifetime.Cancel();
+            _appUpdateTimer.Stop(); _lifetime.Cancel();
             if (_aboutDialog != null) _aboutDialog.Close();
             if (_login != null) _login.Cancel();
             _controller.Dispose();
             if (_direct != null) _direct.Dispose();
-            try { if (_cli != null) _cli.KillActive(); } catch (Exception) { }
             if (_notify != null) _notify.Visible = false;
             if (_floating != null)
             {
@@ -394,7 +380,7 @@ namespace ArkLeft
             if (disposing && !_disposed)
             {
                 _disposed = true;
-                _lifetime.Cancel(); _runtimeTimer.Dispose(); _appUpdateTimer.Dispose();
+                _lifetime.Cancel(); _appUpdateTimer.Dispose();
                 if (_aboutDialog != null) _aboutDialog.Close();
                 if (_login != null) _login.Cancel();
                 _poll.Dispose();
@@ -406,10 +392,9 @@ namespace ArkLeft
                 if (_menuMotion != null) _menuMotion.Dispose();
                 if (_menuHome != null) _menuHome.Dispose();
                 try { if (_trayIcon != null) _trayIcon.Dispose(); } catch (Exception) { }
-                try { if (_cli != null) _cli.Dispose(); } catch (Exception) { }
                 try { if (_direct != null) _direct.Dispose(); } catch (Exception) { }
                 try { if (_form != null) _form.Dispose(); } catch (Exception) { }
-                _notify = null; _menu = null; _trayIcon = null; _cli = null; _form = null;
+                _notify = null; _menu = null; _trayIcon = null; _form = null;
                 _floating = null;
             }
             base.Dispose(disposing);

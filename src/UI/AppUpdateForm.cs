@@ -11,7 +11,7 @@ namespace ArkLeft
         internal readonly Button CheckButton;
         internal readonly Button DownloadButton;
 
-        internal AppUpdateForm(Version current, Func<Task> check, Action download, Action diagnostics)
+        internal AppUpdateForm(Version current, Func<Task> check, Action download)
         {
             Text = "ark_left 关于 / 诊断";
             StartPosition = FormStartPosition.CenterParent;
@@ -35,10 +35,6 @@ namespace ArkLeft
             Controls.Add(DownloadButton);
             Controls.Add(new Label { AutoSize = false, Bounds = new Rectangle(20, 155, 400, 38),
                 Text = "启动后自动检测，运行期间每 24 小时检查一次。\r\n下载后先退出旧版，再运行安装包。" });
-            Button runtime = new Button { Text = "ArkCLI 组件诊断", Enabled = diagnostics != null,
-                Bounds = new Rectangle(20, 210, 150, 32) };
-            runtime.Click += delegate { if (diagnostics != null) diagnostics(); };
-            Controls.Add(runtime);
             Button close = new Button { Text = "关闭", DialogResult = DialogResult.Cancel,
                 Bounds = new Rectangle(310, 210, 110, 32) };
             Controls.Add(close); CancelButton = close;

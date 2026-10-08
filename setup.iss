@@ -41,12 +41,19 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 [Files]
 Source: "{#BuildDir}\ark_left.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\ark_left-check.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#BuildDir}\runtime-bootstrap\*"; DestDir: "{app}\runtime-bootstrap"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#BuildDir}\third_party\*"; DestDir: "{app}\third_party"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#BuildDir}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "docs\*.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "docs\requirements\*.md"; DestDir: "{app}\docs\requirements"; Flags: ignoreversion
+
+[InstallDelete]
+Type: files; Name: "{app}\runtime-bootstrap\amd64\arkcli.exe"
+Type: files; Name: "{app}\runtime-bootstrap\arm64\arkcli.exe"
+Type: dirifempty; Name: "{app}\runtime-bootstrap\amd64"
+Type: dirifempty; Name: "{app}\runtime-bootstrap\arm64"
+Type: dirifempty; Name: "{app}\runtime-bootstrap"
+Type: files; Name: "{app}\third_party\ark-cli-LICENSE.txt"
+Type: dirifempty; Name: "{app}\third_party"
+Type: files; Name: "{app}\THIRD-PARTY-NOTICES.md"
 
 [Icons]
 Name: "{group}\ark_left"; Filename: "{app}\ark_left.exe"; Parameters: "--show"; WorkingDir: "{app}"

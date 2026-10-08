@@ -6,6 +6,8 @@ CLI auth / usage 字段来自 2026-10-03–04 的真实脱敏查询；GetAFPUsag
 
 ## 调用与进程
 
+- v0.23 生产托盘只构造 `DirectAgentPlan`；不构造 `QuotaCli` 或 Runtime 管理器，不启动 ArkCLI 维护计时器。安装包不包含双架构 bootstrap，构建不要求下载或校验 ArkCLI。“关于 / 诊断”仅保留应用更新；以下 CLI 调用规则属于开发兼容路径。
+- 覆盖安装只删除 `{app}\runtime-bootstrap\amd64\arkcli.exe`、`arm64\arkcli.exe` 及随包许可，并移除已空目录；不递归清空用户目录，不修改会话、偏好或用户独立安装的 ArkCLI。
 - Agent Plan 个人版认证为浏览器 Authorization Code + PKCE S256 / 手动粘贴完整 localhost 回调 URL，不启动回调监听；查询为临时 STS 签名的 `GetAFPUsage`，不调用 ArkCLI。具体流程、校验、加密存储和错误分类见 [直连契约](direct-agent-plan.md)。
 - CLI 兼容认证闸门为 `auth status --format json`：退出码为 0 且顶层 `logged_in` 为布尔 `true` 才查询额度。其他 ArkCLI 能力不在本次切换范围内。
 - 仅调用原生 `.exe`，不托管 `.ps1` shim。当前分支解析顺序为存在的绝对 `ARK_LEFT_CLI` 路径 → PATH / npm 对应架构的原生 exe；无效覆盖明确失败。Managed Runtime 为计划 / 待验收，尚未进入当前分支实现。

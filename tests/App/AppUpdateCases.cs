@@ -137,6 +137,10 @@ namespace ArkLeft.Tests
                     timer.Stop(); reached = true;
                     Check("update.dialogShowsAvailable", form.StatusForTest.Contains("0.23.0"), true);
                     Check("update.dialogDownloadEnabled", form.DownloadButton.Enabled, true);
+                    bool runtimeEntry = false;
+                    foreach (Control control in form.Controls)
+                        if (control.Text.Contains("ArkCLI")) runtimeEntry = true;
+                    Check("update.noRuntimeEntry", runtimeEntry, false);
                     form.DownloadButton.PerformClick();
                     browserFailure = true;
                     form.DownloadButton.PerformClick();

@@ -59,8 +59,7 @@ namespace ArkLeft
             if (_disposed) return;
             if (_aboutDialog != null) { _aboutDialog.Activate(); return; }
             using (AppUpdateForm dialog = new AppUpdateForm(_appVersion,
-                delegate { return CheckAppUpdate(true); }, OpenAppRelease,
-                _cli == null ? null : new Action(ShowRuntimeDiagnostics)))
+                delegate { return CheckAppUpdate(true); }, OpenAppRelease))
             {
                 _aboutDialog = dialog;
                 dialog.ShowResult(_appUpdateResult, _appUpdateChecking);
