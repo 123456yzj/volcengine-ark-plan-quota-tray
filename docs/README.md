@@ -7,7 +7,7 @@
 | 文档 | 用途 | 默认读取 |
 | --- | --- | --- |
 | [`requirements/product-requirements.md`](requirements/product-requirements.md) | 正式业务需求 v0.1（R001–R004） | 业务相关时局部读取 |
-| [`requirements/interaction-improvements.md`](requirements/interaction-improvements.md) | 当前交互层；现为 v0.15 UX023 | 交互相关时局部读取 |
+| [`requirements/interaction-improvements.md`](requirements/interaction-improvements.md) | 当前交互层；现为 v0.15.1 UX023 | 交互相关时局部读取 |
 | [`implementation-gaps.md`](implementation-gaps.md) | 实现差异与限制 | 核对需求覆盖或验收边界时 |
 | [`contracts.md`](contracts.md) | 数据与接口契约 | 契约相关时局部读取 |
 | [`tasks.md`](tasks.md) | 跨会话未完成事项、下一步与完成条件 | 跟进未完成事项时 |

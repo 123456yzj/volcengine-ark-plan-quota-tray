@@ -373,6 +373,7 @@ namespace ArkLeft.Tests
 
         private static void FloatingWindowCases()
         {
+            FloatingAntialiasCases();
             // Injection avoids any real preference IO.
             using (FloatingQuotaForm floating = new FloatingQuotaForm(
                 delegate { return (FloatingSettings)null; },
@@ -441,6 +442,8 @@ namespace ArkLeft.Tests
                 FloatingCircleControl circle = floating.CircleForTest;
                 int opened = 0;
                 circle.DetailsRequested += delegate { opened++; };
+                if (!CircleWithin(circle.Bounds, area))
+                    Console.WriteLine("floating placement: circle=" + circle.Bounds + " workArea=" + area);
                 Check("floating.circleInitialInside", CircleWithin(circle.Bounds, area), true);
                 System.Drawing.Point start = circle.Bounds.Location;
                 System.Drawing.Point p0 = new System.Drawing.Point(start.X + 20, start.Y + 20);
@@ -537,6 +540,57 @@ namespace ArkLeft.Tests
                 inf.Products[0].Periods[0].RemainingPercent = double.PositiveInfinity;
                 Check("floating.infUntrusted",
                     FloatingSelection.Build(inf)[0].HasTrustedValue, false);
+            }
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "WindowFromPoint")]
+        private static extern IntPtr AntialiasWindowFromPoint(Point point);
+
+        private static void FloatingAntialiasCases()
+        {
+            using (FloatingCircleControl circle = new FloatingCircleControl())
+            {
+                circle.SetReduceMotion(true);
+                foreach (double scale in new double[] { 1.0, 1.25, 1.5, 2.0 })
+                {
+                    circle.ShowAt(Screen.PrimaryScreen.WorkingArea, scale);
+                    foreach (double percent in new double[] { 0, 50, 100 })
+                    {
+                        circle.SetDisplay(new FloatingDisplay { HasData = true,
+                            PercentKnown = true, Percent = percent, PercentText = percent + "%",
+                            AmountKnown = true, RemainingAmount = 100 });
+                        circle.Refresh(); // Exercise the native layered-window upload too.
+                        string nativeTag = "circle.antialias.native." + scale + "." + percent;
+                        Check(nativeTag + ".centerHit", AntialiasWindowFromPoint(
+                            circle.PointToScreen(new Point(circle.Width / 2, circle.Height / 2))),
+                            circle.Handle);
+                        Check(nativeTag + ".cornerPassesThrough", AntialiasWindowFromPoint(
+                            circle.PointToScreen(Point.Empty)) != circle.Handle, true);
+                        using (Bitmap frame = circle.RenderFrameForTest())
+                        {
+                            string tag = "circle.antialias." + scale + "." + percent;
+                            Check(tag + ".transparentCorner", frame.GetPixel(0, 0).A, (byte)0);
+                            Check(tag + ".opaqueCenter", frame.GetPixel(frame.Width / 2,
+                                frame.Height / 2).A, (byte)255);
+                            int partial = 0, clipped = 0;
+                            for (int y = 0; y < frame.Height; y++)
+                                for (int x = 0; x < frame.Width; x++)
+                                {
+                                    int alpha = frame.GetPixel(x, y).A;
+                                    if (alpha > 0 && alpha < 255)
+                                    {
+                                        partial++;
+                                        if (!circle.Region.IsVisible(x, y)) clipped++;
+                                    }
+                                }
+                            Check(tag + ".smoothEdge", partial > frame.Width, true);
+                            Check(tag + ".edgeInsideRegion", clipped, 0);
+                        }
+                    }
+                    circle.Hide();
+                    circle.Show();
+                    circle.Refresh();
+                }
             }
         }
 

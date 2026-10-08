@@ -20,7 +20,7 @@ namespace ArkLeft.Tests
             Rectangle home1 = FloatingCircleControl.InitialBounds(area, 1.0);
 
             // Scales 1 / 1.5 / 2: home == InitialBounds of the injected work
-            // area (bottom-right, default safe margin, DPI-scaled 136dp
+            // area (bottom-right, default safe margin, DPI-scaled 112dp
             // diameter), circle visible afterwards. The forced re-home path
             // must apply the given bounds even though the circle was already
             // positioned once.

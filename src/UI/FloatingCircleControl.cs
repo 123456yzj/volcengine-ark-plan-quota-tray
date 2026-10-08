@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
@@ -24,7 +27,8 @@ namespace ArkLeft
     }
 
     // The self-painting circle. Top-most, border-less, no taskbar item, with an
-    // elliptical Region so clicks outside the ellipse really pass through. Owns
+    // elliptical Region and per-pixel alpha so the edge is smooth and clicks
+    // outside the ellipse really pass through. Owns
     // only a light repaint timer (never a query). All GDI objects / fonts / the
     // region and timer are released in Dispose.
     internal class FloatingCircleControl : Form
@@ -36,7 +40,7 @@ namespace ArkLeft
         // details-close cannot pull the circle back.
         public event EventHandler ExplicitHideRequested;
 
-        private const int LogicalDiameter = 136;
+        private const int LogicalDiameter = 112;
         private const int LogicalMargin = 16;
         private const int DragThresholdLogical = 4;
 
@@ -129,6 +133,9 @@ namespace ArkLeft
             TopMost = true;
             StartPosition = FormStartPosition.Manual;
             AutoScaleMode = AutoScaleMode.None;
+            // Override WinForms' default minimum top-level window width so a
+            // compact circle stays square at 100% DPI.
+            MinimumSize = new Size(1, 1);
             KeyPreview = true;
             BackColor = Color.White;
             DoubleBuffered = true;
@@ -219,9 +226,9 @@ namespace ArkLeft
             Font pf = null, cf = null;
             try
             {
-                pf = new Font("Microsoft YaHei UI", (float)(24.0 * scale), FontStyle.Bold,
+                pf = new Font("Microsoft YaHei UI", (float)(20.0 * scale), FontStyle.Bold,
                     GraphicsUnit.Point);
-                cf = new Font("Microsoft YaHei UI", (float)(8.5 * scale), FontStyle.Regular,
+                cf = new Font("Microsoft YaHei UI", (float)(8.0 * scale), FontStyle.Regular,
                     GraphicsUnit.Point);
             }
             catch (Exception) { }
@@ -385,7 +392,11 @@ namespace ArkLeft
         {
             base.OnVisibleChanged(e);
             UpdateWaveState();
-            if (Visible) ApplyRegion();
+            if (Visible)
+            {
+                ApplyRegion();
+                Invalidate();
+            }
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -398,6 +409,7 @@ namespace ArkLeft
         {
             base.OnResize(e);
             ApplyRegion();
+            Invalidate();
         }
 
         private void ApplyRegion()
@@ -418,11 +430,103 @@ namespace ArkLeft
         private GraphicsPath EllipsePath()
         {
             GraphicsPath p = new GraphicsPath();
-            p.AddEllipse(0, 0, Math.Max(1, Width - 1), Math.Max(1, Height - 1));
+            // Leave room for the resampling filter's partially covered pixels;
+            // layered-window alpha still passes clicks through transparent pixels.
+            p.AddEllipse(-1, -1, Math.Max(1, Width + 1), Math.Max(1, Height + 1));
             return p;
         }
 
         // ---- painting ----
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= 0x00080000; // WS_EX_LAYERED: preserve edge coverage.
+                return cp;
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativePoint { public int X, Y; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeSize { public int Width, Height; }
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        private struct BlendFunction { public byte Operation, Flags, Alpha, Format; }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UpdateLayeredWindow(IntPtr window, IntPtr destinationDC,
+            ref NativePoint destination, ref NativeSize size, IntPtr sourceDC,
+            ref NativePoint source, int colorKey, ref BlendFunction blend, int flags);
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern IntPtr CreateCompatibleDC(IntPtr dc);
+        [DllImport("gdi32.dll")]
+        private static extern IntPtr SelectObject(IntPtr dc, IntPtr obj);
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteObject(IntPtr obj);
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteDC(IntPtr dc);
+
+        private void PresentFrame(Bitmap frame)
+        {
+            IntPtr dc = CreateCompatibleDC(IntPtr.Zero);
+            if (dc == IntPtr.Zero) throw new System.ComponentModel.Win32Exception();
+            IntPtr bitmap = IntPtr.Zero, old = IntPtr.Zero;
+            try
+            {
+                bitmap = frame.GetHbitmap(Color.FromArgb(0));
+                old = SelectObject(dc, bitmap);
+                NativePoint destination = new NativePoint { X = Left, Y = Top };
+                NativePoint source = new NativePoint();
+                NativeSize size = new NativeSize { Width = frame.Width, Height = frame.Height };
+                BlendFunction blend = new BlendFunction { Alpha = 255, Format = 1 };
+                if (!UpdateLayeredWindow(Handle, IntPtr.Zero, ref destination, ref size,
+                    dc, ref source, 0, ref blend, 2))
+                    throw new System.ComponentModel.Win32Exception();
+            }
+            finally
+            {
+                if (old != IntPtr.Zero) SelectObject(dc, old);
+                if (bitmap != IntPtr.Zero) DeleteObject(bitmap);
+                DeleteDC(dc);
+            }
+        }
+
+        internal Bitmap RenderFrameForTest()
+        {
+            return RenderFrame();
+        }
+
+        private Bitmap RenderFrame()
+        {
+            // Supersample the silhouette as well as the water and text. The
+            // inset keeps every partially covered pixel inside the native region.
+            const int samples = 3;
+            using (Bitmap surface = new Bitmap(Width * samples, Height * samples,
+                PixelFormat.Format32bppPArgb))
+            {
+                using (Graphics g = Graphics.FromImage(surface))
+                using (GraphicsPath clip = new GraphicsPath())
+                {
+                    g.Clear(Color.Transparent);
+                    g.ScaleTransform(samples, samples);
+                    clip.AddEllipse(1.5f, 1.5f, Math.Max(1, Width - 3), Math.Max(1, Height - 3));
+                    g.SetClip(clip);
+                    PaintCircle(g);
+                }
+                Bitmap frame = new Bitmap(Width, Height, PixelFormat.Format32bppPArgb);
+                using (Graphics g = Graphics.FromImage(frame))
+                {
+                    g.CompositingMode = CompositingMode.SourceCopy;
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    g.DrawImage(surface, new Rectangle(0, 0, Width, Height),
+                        0, 0, surface.Width, surface.Height, GraphicsUnit.Pixel);
+                }
+                return frame;
+            }
+        }
 
         private Rectangle AmountBounds
         {
@@ -442,9 +546,31 @@ namespace ArkLeft
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            Graphics g = e.Graphics;
+            if (_waveDead || Disposing || IsDisposed) return;
+            using (Bitmap frame = RenderFrame())
+            {
+                e.Graphics.DrawImageUnscaled(frame, 0, 0);
+            }
+        }
+
+        protected override void OnInvalidated(InvalidateEventArgs e)
+        {
+            base.OnInvalidated(e);
+            // UpdateLayeredWindow owns the displayed surface; subsequent
+            // invalidations need an explicit upload even without WM_PAINT.
+            if (_waveDead || Disposing || IsDisposed || !IsHandleCreated || !Visible
+                || _percentFont == null || _captionFont == null)
+                return;
+            using (Bitmap frame = RenderFrame()) PresentFrame(frame);
+        }
+
+        private void PaintCircle(Graphics g)
+        {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.Clear(Color.White);
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            using (SolidBrush background = new SolidBrush(Color.White))
+                g.FillRectangle(background, 0, 0, Width, Height);
 
             float w = Width - 1, h = Height - 1;
             // 0 = empty, 100 = fully filled (solid water, no sine notch);
@@ -464,7 +590,10 @@ namespace ArkLeft
             using (Pen ring = new Pen(Focused ? UiStyle.Primary
                 : _hovered ? UiStyle.CircleHover : UiStyle.CircleRing,
                 Math.Max(1.5f, w * (_hovered || Focused ? 0.022f : 0.012f))))
-                g.DrawEllipse(ring, 0.5f, 0.5f, w, h);
+            {
+                float inset = 1.5f + ring.Width / 2f;
+                g.DrawEllipse(ring, inset, inset, Width - inset * 2, Height - inset * 2);
+            }
 
             StringFormat center = new StringFormat();
             center.Alignment = StringAlignment.Center;
@@ -474,10 +603,12 @@ namespace ArkLeft
                     _hasData ? new RectangleF(0, h * 0.24f, w, h * 0.32f)
                         : new RectangleF(0, 0, w, h), center);
             if (_amountText.Length > 0)
-                TextRenderer.DrawText(g, FittedAmountText, _captionFont, AmountBounds,
-                    UiStyle.CircleCaption, TextFormatFlags.HorizontalCenter
-                    | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine
-                    | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            {
+                center.FormatFlags = StringFormatFlags.NoWrap;
+                center.Trimming = StringTrimming.EllipsisCharacter;
+                using (SolidBrush caption = new SolidBrush(UiStyle.CircleCaption))
+                    g.DrawString(FittedAmountText, _captionFont, caption, AmountBounds, center);
+            }
             center.Dispose();
         }
 

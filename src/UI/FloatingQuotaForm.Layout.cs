@@ -51,7 +51,7 @@ namespace ArkLeft
         // v0.12 UX020: explicit "归位". Moves the circle to the bottom-right
         // of the work area of the screen the circle is currently on (the
         // primary screen when it was never positioned / has no usable
-        // bounds), using that screen's DPI scale (136 dp logical diameter).
+        // bounds), using that screen's DPI scale (112 dp logical diameter).
         // Works while the position is locked; cancels any in-progress drag;
         // shows the circle; never persists coordinates, never queries, never
         // opens details and never touches lock / reduce-motion / selection.

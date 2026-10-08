@@ -1,6 +1,6 @@
 # 本地使用指南
 
-本指南以当前分支说明运行方法。已接受交互基线为 v0.15；Managed Runtime、应用内登录、自动更新 / 回滚等均为**计划 / 待验收，尚未进入当前分支实现**，差异见 [implementation-gaps.md](implementation-gaps.md)。
+本指南以当前分支说明运行方法。交互基线为 v0.15.1；Managed Runtime、应用内登录、自动更新 / 回滚等均为**计划 / 待验收，尚未进入当前分支实现**，差异见 [implementation-gaps.md](implementation-gaps.md)。
 
 ## 启动
 

@@ -109,11 +109,18 @@ namespace ArkLeft.Tests
                             bool amountInk = false, oldCaptionInk = false;
                             for (int y = bounds.Top; y < circle.Height; y++)
                                 for (int x = 0; x < circle.Width; x++)
-                                    if (bitmap.GetPixel(x, y).ToArgb() == UiStyle.CircleCaption.ToArgb())
+                                {
+                                    Color pixel = bitmap.GetPixel(x, y);
+                                    // Antialiasing blends glyph coverage with the water.
+                                    if (pixel.A == 255
+                                        && Math.Abs(pixel.R - UiStyle.CircleCaption.R) <= 30
+                                        && Math.Abs(pixel.G - UiStyle.CircleCaption.G) <= 30
+                                        && Math.Abs(pixel.B - UiStyle.CircleCaption.B) <= 30)
                                     {
                                         if (bounds.Contains(x, y)) amountInk = true;
                                         else oldCaptionInk = true;
                                     }
+                                }
                             Check(tag + ".painted", amountInk, true);
                             Check(tag + ".noExtraCaption", oldCaptionInk, false);
                             if (scale == 1.0)
