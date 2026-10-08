@@ -160,7 +160,7 @@ namespace ArkLeft.Tests
                     form.Close();
                 };
                 timer.Start();
-                app.PerformMenuForTest(2);
+                app.PerformMenuForTest(3);
                 Check("update.aboutMenuUsesAppDialog", reached, true);
                 Check("update.dialogChecks", checks, 3);
                 Check("update.dialogBrowserOnlyOnClick", opens, 3);
@@ -185,7 +185,7 @@ namespace ArkLeft.Tests
                     form.Close();
                 };
                 timer.Start();
-                app.PerformMenuForTest(2);
+                app.PerformMenuForTest(3);
                 Check("update.closeDialogKeepsAppAlive", app.AppUpdateCheckingForTest && app.AboutDialogForTest == null, true);
                 pending.SetResult(newer);
                 Check("update.resultAfterDialogClosed", DirectPump(check), true);

@@ -248,15 +248,16 @@ namespace ArkLeft.Tests
                 { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
             {
                 app.HideDetailsForTest();
-                Check("ux023.topCount", app.MenuItemCountForTest, 4);
+                Check("ux023.topCount", app.MenuItemCountForTest, 5);
                 Check("ux023.topSettings", app.MenuTextForTest(0), "设置");
-                Check("ux023.topExit", app.MenuTextForTest(3), "退出 ark_left");
+                Check("ux023.topTheme", app.MenuTextForTest(1), "主题");
+                Check("ux023.topExit", app.MenuTextForTest(4), "退出 ark_left");
                 Check("ux023.submenuCount", app.MenuSettingsCountForTest, 3);
                 Check("ux023.submenuContent", app.MenuSettingsTextForTest(0), "悬浮内容");
                 Check("ux023.submenuLogout", app.MenuSettingsTextForTest(1), "登出");
                 Check("ux023.submenuLogin", app.MenuSettingsTextForTest(2), "重新登录");
-                Check("ux023.topToggle", app.MenuTextForTest(1), "隐藏悬浮窗");
-                Check("ux023.topDiagnostics", app.MenuTextForTest(2), "关于 / 诊断");
+                Check("ux023.topToggle", app.MenuTextForTest(2), "隐藏悬浮窗");
+                Check("ux023.topDiagnostics", app.MenuTextForTest(3), "关于 / 诊断");
 
                 // Clicking 设置 expands the native side dropdown and NEVER opens
                 // the settings modal (zero query).
@@ -266,7 +267,7 @@ namespace ArkLeft.Tests
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux023.settingsDropDownRequested",
                     app.MenuSettingsDropDownRequestedForTest, true);
-                Check("ux023.settingsNoModal", app.SettingsOpenForTest, false);
+                Check("ux023.settingsNoModal", app.ThemeDialogOpenForTest, false);
                 Check("ux023.settingsZeroQuery", queries, 0);
 
                 // Real native expansion: show the isolated strip, click 设置,
@@ -289,7 +290,7 @@ namespace ArkLeft.Tests
                     Check("ux023.realDropDownSized", db.Width > 0 && db.Height > 0, true);
                     Check("ux023.realDropDownBeside",
                         db.Left >= strip.Bounds.Left || db.Right <= strip.Bounds.Right, true);
-                    Check("ux023.realNoModal", app.SettingsOpenForTest, false);
+                    Check("ux023.realNoModal", app.ThemeDialogOpenForTest, false);
                     Check("ux023.realZeroQuery", queries, 0);
                 }
                 finally
@@ -316,7 +317,7 @@ namespace ArkLeft.Tests
                 app.PerformMenuContentForTest(other);
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux023.contentSwitched", app.SelectedPeriodTextForTest != before, true);
-                Check("ux023.contentNoModal", app.SettingsOpenForTest, false);
+                Check("ux023.contentNoModal", app.ThemeDialogOpenForTest, false);
                 Check("ux023.contentZeroQuery", queries, 0);
             }
 
@@ -338,7 +339,7 @@ namespace ArkLeft.Tests
                 Check("ux023.failSaveAttempted", failSaves, 1);
                 Check("ux023.failKeepsStored", f.StoredSettingsForTest, null);
                 Check("ux023.failHint", f.LockHintForTest, "悬浮内容未保存");
-                Check("ux023.failNoModal", f.SettingsOpenForTest, false);
+                Check("ux023.failNoModal", f.ThemeDialogOpenForTest, false);
             }
 
             // Empty: no candidates -> the 悬浮内容 submenu is disabled.
@@ -348,16 +349,17 @@ namespace ArkLeft.Tests
                 delegate { return (FloatingPreferences)null; },
                 delegate(FloatingPreferences p) { return true; }))
             {
-                Check("ux023.formTopCount", f.DefaultMenuTopCountForTest, 3);
+                Check("ux023.formTopCount", f.DefaultMenuTopCountForTest, 4);
                 Check("ux023.formTopSettings", f.DefaultMenuTopTextForTest(0), "设置");
-                Check("ux023.formTopToggle", f.DefaultMenuTopTextForTest(1), "显示悬浮窗");
-                Check("ux023.formTopExit", f.DefaultMenuTopTextForTest(2), "退出 ark_left");
+                Check("ux023.formTopTheme", f.DefaultMenuTopTextForTest(1), "主题");
+                Check("ux023.formTopToggle", f.DefaultMenuTopTextForTest(2), "显示悬浮窗");
+                Check("ux023.formTopExit", f.DefaultMenuTopTextForTest(3), "退出 ark_left");
                 Check("ux023.formSubmenuCount", f.DefaultMenuSettingsCountForTest, 1);
                 Check("ux023.formSubmenuContent", f.DefaultMenuSettingsTextForTest(0), "悬浮内容");
                 f.PerformDefaultMenuSettingsForTest();
                 Check("ux023.formDropDownRequested",
                     f.SettingsDropDownRequestedForTest, true);
-                Check("ux023.formNoModal", f.SettingsOpenForTest, false);
+                Check("ux023.formNoModal", f.ThemeDialogOpenForTest, false);
                 f.OpenDefaultMenuContentForTest();
                 Check("ux023.emptyCount", f.DefaultMenuContentCountForTest, 0);
                 Check("ux023.emptyDisabled", f.DefaultMenuContentEnabledForTest, false);
@@ -523,16 +525,6 @@ namespace ArkLeft.Tests
                     f.ContentItemsReleasedForTest - released1, n);
             }
 
-            // Details-right settings modal is preserved; its label is now
-            // 悬浮内容 (details menu itself is unchanged).
-            List<FloatingEntry> candidates = FloatingSelection.SelectableCandidates(
-                FloatingSelection.Build(SyntheticSample.BuildLarge()));
-            using (FloatingSettingsForm dlg = new FloatingSettingsForm(candidates, null,
-                delegate(FloatingSettings s) { return true; }))
-            {
-                Check("ux023.modalHeading", dlg.HeadingForTest.Text, "悬浮内容");
-                Check("ux023.modalAccessible", dlg.AccessibleName, "悬浮内容");
-            }
         }
 
     }

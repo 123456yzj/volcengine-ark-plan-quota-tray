@@ -202,7 +202,7 @@ namespace ArkLeft.Tests
                 Check("home.appAtHome", circle.Bounds,
                     FloatingCircleControl.InitialBounds(scr.WorkingArea, DpiUtil.GetScale(scr)));
                 Check("home.appZeroQuery", queries, 0);
-                Check("home.appToggleText", app.MenuTextForTest(1), "隐藏悬浮窗");
+                Check("home.appToggleText", app.MenuTextForTest(2), "隐藏悬浮窗");
                 Check("home.appPollVisible", app.PollIntervalForTest, 10000);
             }
 
@@ -227,7 +227,7 @@ namespace ArkLeft.Tests
                 Check("home.hiddenAppNoSave", app.LockFailNotifyCountForTest, 0);
                 Check("home.hiddenAppZeroQuery", queries2, 0);
                 Check("home.hiddenAppPollVisible", app.PollIntervalForTest, 10000);
-                Check("home.hiddenAppToggleText", app.MenuTextForTest(1), "隐藏悬浮窗");
+                Check("home.hiddenAppToggleText", app.MenuTextForTest(2), "隐藏悬浮窗");
             }
 
             // Settings modal up: a programmatic 归位 click must do NOTHING
@@ -255,7 +255,7 @@ namespace ArkLeft.Tests
                 t.Tick += delegate
                 {
                     t.Stop();
-                    FloatingSettingsForm dlg = FindOpenSettings();
+                    ThemeDialogForm dlg = FindOpenThemeDialog();
                     if (dlg == null) return; // modal never opened: skip marker
                     app.PerformMenuHomeForTest(); // 归位 while the modal owns the loop
                     clicked = true;
@@ -264,12 +264,12 @@ namespace ArkLeft.Tests
                     dlg.Close();
                 };
                 t.Start();
-                app.OpenSettingsForTest(); // settings modal (blocks in ShowDialog)
+                app.OpenThemeForTest(); // theme modal (blocks in ShowDialog)
                 t.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("home.modalClicked", clicked, true);
                 Check("home.modalNoMove", during, dragged);
-                Check("home.modalClosed", app.SettingsOpenForTest, false);
+                Check("home.modalClosed", app.ThemeDialogOpenForTest, false);
                 Check("home.modalStillDragged", circle.Bounds, dragged);
                 Check("home.modalZeroQuery", queries3, 0);
             }

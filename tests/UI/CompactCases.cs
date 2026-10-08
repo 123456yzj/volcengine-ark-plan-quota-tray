@@ -259,15 +259,13 @@ namespace ArkLeft.Tests
                 menu.Renderer.DrawMenuItemBackground(new ToolStripItemRenderEventArgs(g, item));
                 Check("modern.menu.hover", bmp.GetPixel(5, 5).ToArgb(), UiStyle.TealLight.ToArgb());
             }
-            List<FloatingEntry> candidates = FloatingSelection.SelectableCandidates(
-                FloatingSelection.Build(SyntheticSample.BuildLarge()));
-            using (FloatingSettingsForm settings = new FloatingSettingsForm(candidates, null,
-                delegate(FloatingSettings s) { return true; }))
+            using (ThemeDialogForm settings = new ThemeDialogForm(1.0,
+                Screen.PrimaryScreen.WorkingArea, null, delegate(int a, bool d) { return true; }, 0, false))
             {
                 Check("modern.settings.white", settings.BackColor, Color.White);
                 Check("modern.settings.header", settings.HeaderForTest.BackColor, Color.White);
                 Check("modern.settings.button", settings.SaveButtonForTest is ModernButton, true);
-                Check("modern.settings.selector", settings.ComboForTest is ModernComboBox, true);
+                Check("modern.settings.selector", settings.AccentComboForTest is ModernComboBox, true);
                 Check("modern.settings.rounded", settings.Region != null, true);
             }
             using (FloatingQuotaForm floating = new FloatingQuotaForm(
@@ -313,7 +311,6 @@ namespace ArkLeft.Tests
                     Check(tag + ".scientific", amount.Text.IndexOf("E+", StringComparison.Ordinal) >= 0, true);
                     Check(tag + ".measured", TextRenderer.MeasureText(amount.Text, amount.Font).Width
                         <= amount.Width, true);
-                    Check(tag + ".tooltip", form.ToolTipForTest.GetToolTip(amount), expected);
                 }
             Check(tag + ".found", found, true);
         }
@@ -436,8 +433,6 @@ namespace ArkLeft.Tests
                         && card.ClientRectangle.Contains(pct.Bounds)
                         && card.ClientRectangle.Contains(date.Bounds)
                         && card.ClientRectangle.Contains(amount.Bounds), true);
-                    if (amount.Text.IndexOf("E+", StringComparison.Ordinal) >= 0)
-                        Check(tag + ".longTooltip", form.ToolTipForTest.GetToolTip(amount).Contains("额度"), true);
                 }
             }
         }

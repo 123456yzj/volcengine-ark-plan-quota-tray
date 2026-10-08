@@ -58,30 +58,10 @@ namespace ArkLeft
 
         // Test hook: whether the model still holds a reusable snapshot.
         public bool ModelHasLast { get { return _model.Last != null; } }
-        // ---- UX019 / UX022 test hooks (offline; never the real clipboard) ----
+        // ---- UX022 / UX029 test hooks ----
 
-        // UX022: the real details-local context menu and its four actions.
-        internal ContextMenuStrip DetailsMenuForTest { get { return _detailsMenu; } }
-        internal ToolStripMenuItem RefreshMenuItemForTest { get { return _miRefresh; } }
-        internal ToolStripMenuItem CopyMenuItemForTest { get { return _miCopy; } }
-        internal ToolStripMenuItem SettingsMenuItemForTest { get { return _miSettings; } }
-        internal ToolStripMenuItem CloseMenuItemForTest { get { return _miClose; } }
         internal bool MenuOpenForTest { get { return _menuOpen; } }
-        internal System.Windows.Forms.ToolTip ToolTipForTest { get { return _tip; } }
-        internal System.Windows.Forms.Timer CopyFeedbackTimerForTest { get { return _copyFeedback; } }
-        internal string CopyFeedbackTextForTest { get { return _copyFeedbackText; } }
 
-        // Offline tests inject a recorder instead of Clipboard.SetText.
-        internal Action<string> ClipboardSetForTest
-        {
-            get { return _clipboardSet; }
-            set { _clipboardSet = value; }
-        }
-
-        // Layout matrix injection: a scale change must REBUILD the cards
-        // (fonts / paddings / radius / height are scale-derived) and re-fit
-        // the window; the per-card layout cache is invalidated so a
-        // same-width card still reflows.
         internal void SetScaleForTest(double scale)
         {
             _scale = scale;
@@ -100,13 +80,17 @@ namespace ArkLeft
             _pendingReposition = false;
             return pending;
         }
-        // UX022: the footer update time moved onto the cards' tooltip.
+        // UX029: the details show the update time only as the card's
+        // "arkUpdateTime" label text (tooltips were removed). Tests read that
+        // label directly instead of a tooltip.
         internal string UpdateTimeTextForTest
         {
             get
             {
-                return _content.Controls.Count > 0
-                    ? _tip.GetToolTip(_content.Controls[0]) : "";
+                if (_content.Controls.Count == 0) return "";
+                foreach (Control child in _content.Controls[0].Controls)
+                    if (child.Name == "arkUpdateTime") return child.Text;
+                return "";
             }
         }
 

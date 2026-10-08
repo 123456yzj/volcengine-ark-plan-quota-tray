@@ -7,7 +7,7 @@ namespace ArkLeft
 {
     internal sealed partial class TrayApp
     {
-        internal void OpenSettingsForTest() { OpenSettings(); }
+        internal void OpenThemeForTest() { OpenTheme(); }
 
         internal void OpenEntryForTest(string entry)
         {
@@ -44,7 +44,7 @@ namespace ArkLeft
         internal PopupForm DetailsFormForTest { get { return _form; } }
         internal FloatingCircleControl CircleForTest { get { return _floating.CircleForTest; } }
         internal Rectangle DetailsBoundsForTest { get { return _form.Bounds; } }
-        internal bool SettingsOpenForTest { get { return _floating.SettingsOpenForTest; } }
+        internal bool ThemeDialogOpenForTest { get { return _floating.ThemeDialogOpenForTest; } }
         internal void HideDetailsForTest() { _form.HidePanel(); }
         internal void ToggleFloatingForTest() { ToggleFloating(); }
         internal int MenuItemCountForTest { get { return _menu == null ? 0 : _menu.Items.Count; } }
@@ -102,6 +102,12 @@ namespace ArkLeft
         internal void PerformMenuSettingsClickForTest()
         {
             if (_menuSettings != null) _menuSettings.PerformClick();
+        }
+        // v0.24 UX029: first-level 主题 item opens the standalone theme dialog.
+        internal ToolStripMenuItem MenuThemeForTest { get { return _menuTheme; } }
+        internal void PerformMenuThemeClickForTest()
+        {
+            if (_menuTheme != null) _menuTheme.PerformClick();
         }
         internal void OpenMenuContentForTest()
         {

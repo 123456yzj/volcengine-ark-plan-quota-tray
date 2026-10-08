@@ -79,7 +79,6 @@ namespace ArkLeft.Tests
                 {
                     FloatingPreferencesUX016Cases();
                     FloatingPreferencesUX017Cases();
-                    FloatingSettingsDialogCases();
                     FloatingMenuUX023Cases();
                     ThemeUX029Cases();
                     Console.WriteLine("theme: passed " + _passed + ", failed " + _failed);
@@ -182,16 +181,12 @@ namespace ArkLeft.Tests
             FloatingDisplayCases();
             FloatingWindowCases();
             FloatingTrayAppCases();
-            FloatingSettingsDialogCases();
             FloatingLayoutCases();
-            FloatingSettingsModalCases();
             FloatingPrepareDetailsCases();
             PollIntervalUX013Cases();
-            FloatingSettingsUX015Cases();
             FloatingPreferencesUX016Cases();
             FloatingPreferencesUX017Cases();
             QuotaSummaryCases();
-            CopySummaryUX019Cases();
             RepositionHomeUX020Cases();
             DetailsShortcutUX021Cases();
             CardOnlyUX022Cases();

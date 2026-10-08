@@ -116,17 +116,18 @@ namespace ArkLeft
                     TrySaveControlPreview(contentItem.DropDown, "preview-menu-content.png");
                     menu.Close();
 
-                    // Settings dialog (production Drawing) with an injected
-                    // no-op save; never touches the real preference file.
-                    List<FloatingEntry> candidates = FloatingSelection.SelectableCandidates(
-                        FloatingSelection.Build(SyntheticSample.BuildLarge()));
-                    using (FloatingSettingsForm dlg = new FloatingSettingsForm(
-                        candidates, null, delegate(FloatingSettings s) { return true; }))
+                    // Theme dialog (standalone, v0.24 UX029) with injected
+                    // no-op preview / save; never touches the real preference
+                    // file.
+                    using (ThemeDialogForm dlg = new ThemeDialogForm(1.0,
+                        new Rectangle(0, 0, 1920, 1040),
+                        delegate(int a, bool d) { }, delegate(int a, bool d) { return true; },
+                        0, false))
                     {
-                        if (dlg.Controls.Count == 0) { bad++; Console.Error.WriteLine("settings: no controls"); }
+                        if (dlg.Controls.Count == 0) { bad++; Console.Error.WriteLine("theme: no controls"); }
                         dlg.Show();
                         Application.DoEvents();
-                        TrySaveControlPreview(dlg, "preview-settings.png");
+                        TrySaveControlPreview(dlg, "preview-theme.png");
                         dlg.Close();
                     }
 

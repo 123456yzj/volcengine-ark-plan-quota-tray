@@ -103,16 +103,16 @@ Version 必须为整数 1；key / label 必须为非空字符串，长度分别�
 
 严格格式 2（恰为 Version=2 与 PositionLocked、ReduceMotion 三字段）与严格格式 1（恰为 Version=1 与 PositionLocked 两字段）只读迁移为内存格式 3，缺失项取默认（ReduceMotion=false、AccentIndex=0、DarkMode=false）；加载不写盘，后续显式保存写格式 3，同时携带全部 flag。同值不写盘；损坏、多字段、类型 / 版本不符或超限回默认。原子写失败保留旧文件与全部旧偏好，提示对应字段失败。
 
-## 窗口、复制与轮询
+## 窗口与轮询
 
-窗口尺寸、定位、选择、菜单、锁定、动画、归位、复制与快捷键行为统一见 [交互需求](requirements/interaction-improvements.md)。复制 formatter 独立过滤原始错误和身份信息，不能依赖 parser 已净化。
+窗口尺寸、定位、选择、菜单、主题、锁定、动画、归位与快捷键行为统一见 [交互需求](requirements/interaction-improvements.md)。详情摘要复制入口已移除；保留的纯摘要 formatter 独立过滤原始错误和身份信息，不能依赖 parser 已净化。
 
-轮询参数为 `SnapshotController.VisiblePollIntervalMs = 10000`、`PollIntervalMs = 300000`；设置窗口不单独提速，可见性切换只改间隔。启动、定时、手动刷新共用 single-flight，不排队。额度缓存和选择 / 偏好格式互相独立。
+轮询参数为 `SnapshotController.VisiblePollIntervalMs = 10000`、`PollIntervalMs = 300000`；主题窗口不单独提速，可见性切换只改间隔。启动、定时、手动刷新共用 single-flight，不排队。额度缓存和选择 / 偏好格式互相独立。
 
 ## 本地启动与实例替换
 
-- 入口为 `start.cmd` → `launch.ps1`（当前默认 `-OutputDir bin-v16`）→ `bin-v16\ark_left.exe --show`。目标 exe 缺失时由 build.ps1 构建到目标目录。
-- 目标必须为项目根下一级 `bin`、`bin-release` 或 `bin-vN`。当前旧实例清单明确枚举 `bin`、`bin-release`、`bin-v04`–`bin-v15`，排除目标本身；不是任意 `bin-vN` 都会被关闭。
+- 入口为 `start.cmd` → `launch.ps1`（当前默认 `-OutputDir bin-v24`）→ `bin-v24\ark_left.exe --show`。目标 exe 缺失时由 build.ps1 构建到目标目录。
+- 目标必须为项目根下一级 `bin`、`bin-release` 或 `bin-vN`。当前旧实例清单明确枚举 `bin`、`bin-release`、`bin-v04`–`bin-v24`，排除目标本身；不是任意 `bin-vN` 都会被关闭。
 - 实例须同时满足进程名 `ark_left`、完整主模块路径在白名单、文件名 `ark_left.exe`。名字只用于发现候选，项目外已确认路径的同名实例跳过；无法核实路径则失败。
 - 旧版经 EnumWindows / GetWindowThreadProcessId 定位唯一 GUI 线程（含隐藏窗口），只投递一次 WM_QUIT，应用退出消息循环后自行 Cleanup；每实例等待最多 10 秒。不能定位唯一线程、超时或身份验证失败时非零退出，不启动新 exe；不强杀或覆盖活动二进制。
 - 同目标版本不关闭，另启动 `--show` 经 `Local\ark_left_show_event`（含实例后缀）IPC 唤起，原实例继续驻留。

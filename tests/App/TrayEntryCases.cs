@@ -54,17 +54,17 @@ namespace ArkLeft.Tests
                     form.RefreshRequested += async delegate { await controller.Refresh(); };
                     form.ShowPanel();
                     // UX022: the card (content's first child) is the focus
-                    // target; the refresh action is a details-menu item.
+                    // target; Ctrl+R refreshes the focused details.
                     form.ContentForTest.Controls[0].Focus();
                     form.ContentForTest.AutoScrollPosition = new Point(0, 90);
                     Point scroll = form.ContentForTest.AutoScrollPosition;
                     System.Windows.Forms.Control card = form.ContentControls[0];
                     System.Windows.Forms.Control child = card.Controls[0];
                     string time = form.UpdateTimeTextForTest;
-                    form.RefreshMenuItemForTest.PerformClick();
-                    form.RefreshMenuItemForTest.PerformClick();
+                    Application.DoEvents();
+                    DispatchCmdKey(card, Keys.Control | Keys.R);
+                    DispatchCmdKey(card, Keys.Control | Keys.R);
                     Check("actualRefresh.singleFlight", queries, 1);
-                    Check("actualRefresh.menuItemEnabled", form.RefreshMenuItemForTest.Enabled, true);
                     Check("actualRefresh.waitSameChild", ReferenceEquals(child, form.ContentControls[0].Controls[0]), true);
                     Check("actualRefresh.waitTime", form.UpdateTimeTextForTest, time);
                     Check("actualRefresh.waitScroll", form.ContentForTest.AutoScrollPosition, scroll);
@@ -114,12 +114,12 @@ namespace ArkLeft.Tests
                 Check("trayApp.circleToggleZeroQuery", queries, 0);
 
                 // Account actions live inside the shared settings submenu.
-                Check("trayApp.menuPresent", app.MenuItemCountForTest, 4);
+                Check("trayApp.menuPresent", app.MenuItemCountForTest, 5);
                 Check("trayApp.menuTopSettings", app.MenuTextForTest(0), "设置");
-                Check("trayApp.menuTopExit", app.MenuTextForTest(3), "退出 ark_left");
+                Check("trayApp.menuTopExit", app.MenuTextForTest(4), "退出 ark_left");
                 Check("trayApp.submenuCount", app.MenuSettingsCountForTest, 3);
                 Check("trayApp.menuHasContent", app.MenuSettingsTextForTest(0), "悬浮内容");
-                Check("trayApp.menuHasToggle", app.MenuTextForTest(1), "隐藏悬浮窗");
+                Check("trayApp.menuHasToggle", app.MenuTextForTest(2), "隐藏悬浮窗");
                 app.ShowDetailsForTest(); // left-click details path, zero query
                 System.Windows.Forms.Application.DoEvents();
                 Check("trayApp.menuViewZeroQuery", queries, 0);

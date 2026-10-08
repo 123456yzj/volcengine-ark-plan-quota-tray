@@ -48,7 +48,7 @@ namespace ArkLeft
                 else
                 {
                     // UX022: same semantics — the status line (and the update
-                    // time tooltip) update IN PLACE: no card rebuild, no focus
+                    // time label) update IN PLACE: no card rebuild, no focus
                     // / scroll reset, and the window still hugs the card if
                     // the status line appeared or disappeared.
                     SyncStatusInPlace();
@@ -58,9 +58,8 @@ namespace ArkLeft
                     SizeToFit(false);
                 }
                 _introCard = null;
-                if (_miCopy != null) _miCopy.Enabled = v.Data != null;
+                SyncUpdateTimeLabel();
                 _displayKey = key;
-                SyncUpdateTimeTooltip();
             }
             finally
             {
@@ -82,32 +81,23 @@ namespace ArkLeft
             if (Visible) Invalidate(true);
         }
 
-        private static string LastUpdate(DateTime time)
-        {
-            return time == DateTime.MinValue ? "更新时间未知" : "最后更新 " + DisplayNames.FormatTime(time);
-        }
-
         private static string HeaderUpdateTime(DateTime time)
         {
             return time == DateTime.MinValue ? "更新时间未知"
                 : "更新 " + time.ToString("MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        // Update the header timestamp and full-date tooltip in place, without
-        // rebuilding cards or changing focus, scroll or header geometry.
-        private void SyncUpdateTimeTooltip()
+        // Update the header timestamp in place, without rebuilding cards or
+        // changing focus, scroll or header geometry. v0.24 UX029: no tooltip.
+        private void SyncUpdateTimeLabel()
         {
             if (_view == null || _view.Data == null) return;
-            string text = LastUpdate(_view.Data.FetchedAt);
             for (int i = 0; i < _content.Controls.Count; i++)
             {
-                try { _tip.SetToolTip(_content.Controls[i], text); }
-                catch (Exception) { }
                 foreach (Control child in _content.Controls[i].Controls)
                 {
                     if (child.Name != "arkUpdateTime") continue;
                     child.Text = HeaderUpdateTime(_view.Data.FetchedAt);
-                    _tip.SetToolTip(child, text);
                 }
             }
         }
@@ -268,7 +258,7 @@ namespace ArkLeft
             }
             try
             {
-                SyncUpdateTimeTooltip();
+                SyncUpdateTimeLabel();
             }
             catch (Exception) { }
         }

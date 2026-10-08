@@ -1,6 +1,6 @@
 # 实现差异与限制
 
-对照基线为 [业务 v0.7](requirements/product-requirements.md) 与 [交互 v0.21 UX029](requirements/interaction-improvements.md)。Agent Plan 个人版使用独立浏览器 SSO、手动回调与 GetAFPUsage 直连；v0.22 增加应用更新，v0.23 移除随包 ArkCLI 与托盘组件维护 / 诊断，v0.24 增加主题色设置。其他套餐的真实订阅验收仍未补齐。
+对照基线为 [业务 v0.7](requirements/product-requirements.md) 与 [交互 v0.22 UX030](requirements/interaction-improvements.md)。Agent Plan 个人版使用独立浏览器 SSO、手动回调与 GetAFPUsage 直连；v0.22 增加应用更新，v0.23 移除随包 ArkCLI 与托盘组件维护 / 诊断，v0.24 增加主题色设置。当前分支使用一级主题菜单与独立弹窗，移除详情右键菜单、摘要复制和 tooltip。其他套餐的真实订阅验收仍未补齐。
 
 ## 分支实现与计划 / 待验收差异
 

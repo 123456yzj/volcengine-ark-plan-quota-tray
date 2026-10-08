@@ -91,15 +91,37 @@ namespace ArkLeft.Tests
             }
             UiStyle.Apply(0, false);
 
-            // ---- settings dialog: preview commits on 保存, reverts on cancel;
+            // Layout at common DPI scales and a constrained work area.
+            foreach (double scale in new double[] { 1.0, 1.5, 2.0 })
+            foreach (Rectangle work in new Rectangle[] {
+                new Rectangle(-1920, 0, 1920, 1040), new Rectangle(0, 0, 400, 200) })
+            using (ThemeDialogForm dlg = new ThemeDialogForm(scale, work, null,
+                delegate(int a, bool d) { return false; }, 0, false))
+            {
+                IntPtr h = dlg.Handle; GC.KeepAlive(h);
+                string tag = "theme.layout." + scale + "." + work.Width;
+                Check(tag + ".insideWork", work.Contains(dlg.Bounds), true);
+                Check(tag + ".heading", dlg.HeadingForTest.Text, "主题");
+                Check(tag + ".accessible", dlg.AccessibleName, "主题");
+                Check(tag + ".accentCount", dlg.AccentComboForTest.Items.Count, ThemeCatalog.Count);
+                Check(tag + ".accentInside", dlg.ClientRectangle.Contains(dlg.AccentComboForTest.Bounds), true);
+                Check(tag + ".darkInside", dlg.ClientRectangle.Contains(dlg.DarkCheckForTest.Bounds), true);
+                Check(tag + ".saveInside", dlg.ClientRectangle.Contains(dlg.SaveButtonForTest.Bounds), true);
+                Check(tag + ".cancelInside", dlg.ClientRectangle.Contains(dlg.CancelButtonForTest.Bounds), true);
+                Check(tag + ".buttonGap", dlg.SaveButtonForTest.Right <= dlg.CancelButtonForTest.Left, true);
+                Check(tag + ".headerGap", dlg.HeaderForTest.Bottom <= dlg.AccentComboForTest.Top, true);
+                Check(tag + ".darkGap", dlg.AccentComboForTest.Bottom <= dlg.DarkCheckForTest.Top, true);
+                Check(tag + ".saveFailure", dlg.SaveForTest(), false);
+                Check(tag + ".errorInside", dlg.ClientRectangle.Contains(dlg.ErrorLabelForTest.Bounds), true);
+                Check(tag + ".errorAboveButtons", dlg.ErrorLabelForTest.Bottom <= dlg.SaveButtonForTest.Top, true);
+            }
+
+            // ---- theme dialog: preview commits on 保存, reverts on cancel;
             // both carry the accent + dark through the injected callbacks ----
-            List<FloatingEntry> candidates = FloatingSelection.SelectableCandidates(
-                FloatingSelection.Build(SyntheticSample.BuildLarge()));
             List<string> previews = new List<string>();
             int themeSaves = 0;
             int savedAccent = -1; bool savedDark = false;
-            using (FloatingSettingsForm dlg = new FloatingSettingsForm(candidates, null,
-                delegate(FloatingSettings s) { return true; },
+            using (ThemeDialogForm dlg = new ThemeDialogForm(
                 1.0, new Rectangle(0, 0, 1920, 1040),
                 delegate(int a, bool d) { previews.Add(a + ":" + d); },
                 delegate(int a, bool d) { themeSaves++; savedAccent = a; savedDark = d; return true; },
@@ -115,8 +137,7 @@ namespace ArkLeft.Tests
                 Check("ux029.dlgPreviewDark", previews[previews.Count - 1], "4:True");
                 Check("ux029.dlgStateAccent", dlg.ThemeAccentForTest, 4);
                 Check("ux029.dlgStateDark", dlg.ThemeDarkForTest, true);
-                // Save persists both theme and target.
-                dlg.SelectForTest(0);
+                // Save persists the theme.
                 Check("ux029.dlgSave", dlg.SaveForTest(), true);
                 Check("ux029.dlgThemeSaved", themeSaves, 1);
                 Check("ux029.dlgSavedAccent", savedAccent, 4);
@@ -127,8 +148,7 @@ namespace ArkLeft.Tests
             // nothing persisted.
             List<string> previews2 = new List<string>();
             int themeSaves2 = 0;
-            using (FloatingSettingsForm dlg = new FloatingSettingsForm(candidates, null,
-                delegate(FloatingSettings s) { return true; },
+            using (ThemeDialogForm dlg = new ThemeDialogForm(
                 1.0, new Rectangle(0, 0, 1920, 1040),
                 delegate(int a, bool d) { previews2.Add(a + ":" + d); },
                 delegate(int a, bool d) { themeSaves2++; return true; },
@@ -145,10 +165,9 @@ namespace ArkLeft.Tests
             }
 
             // Save failure keeps the dialog open with an inline error and
-            // reverts the preview; the target save is not the failure.
+            // reverts the preview.
             List<string> previews3 = new List<string>();
-            using (FloatingSettingsForm dlg = new FloatingSettingsForm(candidates, null,
-                delegate(FloatingSettings s) { return true; },
+            using (ThemeDialogForm dlg = new ThemeDialogForm(
                 1.0, new Rectangle(0, 0, 1920, 1040),
                 delegate(int a, bool d) { previews3.Add(a + ":" + d); },
                 delegate(int a, bool d) { return false; },
@@ -156,7 +175,6 @@ namespace ArkLeft.Tests
             {
                 IntPtr h = dlg.Handle; GC.KeepAlive(h);
                 dlg.SelectAccentForTest(3);
-                dlg.SelectForTest(0);
                 Check("ux029.failSaveRefused", dlg.SaveForTest(), false);
                 Check("ux029.failStaysOpen", dlg.DialogResult != DialogResult.OK, true);
                 Check("ux029.failInline", dlg.ErrorForTest.Contains("主题设置保存失败"), true);
@@ -164,7 +182,7 @@ namespace ArkLeft.Tests
                     && previews3[previews3.Count - 1] == "0:False", true);
             }
 
-            // ---- production path: tray menu -> settings modal changes the
+            // ---- production path: first-level theme menu changes the
             // theme; zero query, persisted, and the circle/UI repaints ----
             int queries = 0;
             int prefsSaved = 0;
@@ -183,22 +201,73 @@ namespace ArkLeft.Tests
                 t.Tick += delegate
                 {
                     t.Stop();
-                    FloatingSettingsForm dlg = FindOpenSettings();
+                    ThemeDialogForm dlg = FindOpenThemeDialog();
                     if (dlg == null) return;
                     dlg.SelectAccentForTest(2);
                     dlg.SetDarkForTest(true);
-                    dlg.SelectForTest(0);
                     dlg.SaveForTest();
                 };
                 t.Start();
-                app.OpenSettingsForTest();
+                app.PerformMenuThemeClickForTest();
                 t.Dispose();
                 System.Windows.Forms.Application.DoEvents();
                 Check("ux029.prodThemePersisted", prefsSaved >= 1 && lastAccent == 2 && lastDark, true);
                 Check("ux029.prodLiveApplied", UiStyle.Primary.ToArgb(),
                     ThemeCatalog.Accent(2).ToArgb());
                 Check("ux029.prodZeroQuery", queries, 0);
-                Check("ux029.prodDialogClosed", app.SettingsOpenForTest, false);
+                Check("ux029.prodDialogClosed", app.ThemeDialogOpenForTest, false);
+            }
+            UiStyle.Apply(0, false);
+
+            // Real modal: repeat requests preserve suppression, cancel restores
+            // the preview, focus and scroll without querying or saving.
+            int cancelQueries = 0, cancelSaves = 0;
+            using (TrayApp app = new TrayApp(delegate(IProgress<QueryProgress> progress,
+                System.Threading.CancellationToken token)
+                { cancelQueries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); },
+                delegate(FloatingPreferences p) { cancelSaves++; return true; }))
+            {
+                app.ApplyViewForTest(SyntheticSample.BuildLarge());
+                app.ShowDetailsForTest();
+                Application.DoEvents();
+                PopupForm details = app.DetailsFormForTest;
+                details.ContentForTest.Controls[0].Focus();
+                details.ContentForTest.AutoScrollPosition = new Point(0, 90);
+                Point scroll = details.ContentForTest.AutoScrollPosition;
+                Control focus = details.ActiveControlForTest;
+                bool reached = false;
+                using (Timer timer = new Timer())
+                {
+                    timer.Interval = 200;
+                    timer.Tick += delegate
+                    {
+                        timer.Stop();
+                        ThemeDialogForm dlg = FindOpenThemeDialog();
+                        if (dlg == null) return;
+                        reached = true;
+                        dlg.SelectAccentForTest(4);
+                        dlg.SetDarkForTest(true);
+                        Check("theme.modal.preview", UiStyle.Primary, ThemeCatalog.Accent(4));
+                        app.OpenThemeForTest();
+                        Check("theme.modal.sameInstance", FindOpenThemeDialog() == dlg, true);
+                        Check("theme.modal.suppressed", details.DialogOpenForTest, true);
+                        Check("theme.modal.detailsVisible", details.Visible, true);
+                        ((Button)dlg.CancelButtonForTest).PerformClick();
+                    };
+                    timer.Start();
+                    app.OpenThemeForTest();
+                }
+                Application.DoEvents();
+                Check("theme.modal.reached", reached, true);
+                Check("theme.modal.closed", app.ThemeDialogOpenForTest, false);
+                Check("theme.modal.guardReleased", details.DialogOpenForTest, false);
+                Check("theme.modal.oldFocusRebuilt", focus.IsDisposed, true);
+                Check("theme.modal.focusRestored", details.ActiveControlForTest,
+                    details.ContentForTest.Controls[0]);
+                Check("theme.modal.scrollRestored", details.ContentForTest.AutoScrollPosition, scroll);
+                Check("theme.modal.reverted", UiStyle.Primary, ThemeCatalog.Accent(0));
+                Check("theme.modal.noSave", cancelSaves, 0);
+                Check("theme.modal.noQuery", cancelQueries, 0);
             }
             UiStyle.Apply(0, false);
         }

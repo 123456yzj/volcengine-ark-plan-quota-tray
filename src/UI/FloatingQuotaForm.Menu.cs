@@ -46,7 +46,12 @@ namespace ArkLeft
                 SyncPrefMenuChecks();
                 UpdateToggleItemText();
             };
+            // v0.24 UX029: first-level 主题 item mirroring the shared menu; it
+            // raises ThemeRequested so the owner opens the standalone dialog
+            // (zero query, no modal opened here).
+            _themeItem = new ToolStripMenuItem("主题", null, delegate { RaiseTheme(); });
             menu.Items.Add(_settingsItem);
+            menu.Items.Add(_themeItem);
             menu.Items.Add(_toggleItem);
             menu.Items.Add("退出 ark_left", null, delegate { RaiseExit(); });
             PopulateContentMenu(_contentItem);
@@ -234,7 +239,7 @@ namespace ArkLeft
         }
 
         private void RaiseDetails() { if (DetailsRequested != null) DetailsRequested(this, EventArgs.Empty); }
-        private void RaiseSettings() { if (SettingsRequested != null) SettingsRequested(this, EventArgs.Empty); }
+        private void RaiseTheme() { if (ThemeRequested != null) ThemeRequested(this, EventArgs.Empty); }
         private void RaiseExit() { if (ExitRequested != null) ExitRequested(this, EventArgs.Empty); }
 
         // ---- v0.8 UX016 position lock ----

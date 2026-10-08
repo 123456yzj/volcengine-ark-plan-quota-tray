@@ -37,6 +37,8 @@ namespace ArkLeft
         private ToolStripMenuItem _contentItem;
         private ToolStripMenuItem _homeItem;
         private ToolStripMenuItem _toggleItem;
+        // v0.24 UX029: first-level 主题 item on the default circle menu.
+        private ToolStripMenuItem _themeItem;
         // v0.15 UX023: observable "设置 clicked -> native side dropdown" intent
         // (no real popup is created offline, where the strip is never shown).
         private bool _settingsDropDownRequested;
@@ -59,7 +61,7 @@ namespace ArkLeft
         private FloatingSettings _selected;
         private List<FloatingEntry> _entries = new List<FloatingEntry>();
         private PanelView _view;
-        private FloatingSettingsForm _settingsForm;
+        private ThemeDialogForm _themeDialog;
         private bool _positioned;
         private bool _autoHiddenForDetails;
         private bool _positionLocked;
@@ -73,7 +75,7 @@ namespace ArkLeft
 
         public event EventHandler DetailsRequested;
         public event EventHandler DragStarted;
-        public event EventHandler SettingsRequested;
+        public event EventHandler ThemeRequested;
         public event EventHandler ExitRequested;
         // v0.8 UX016: raised after any lock toggle attempt (success or save
         // failure) so the tray menu re-syncs its check against the REAL
@@ -180,27 +182,25 @@ namespace ArkLeft
 
         // ---- settings ----
 
-        public void OpenSettings()
+        // v0.24 UX029: the first-level 主题 menu item opens the standalone theme
+        // dialog. The caller supplies the window that OWNS the modal — the
+        // details panel when relevant, the floating window from the circle /
+        // tray. Repeat requests only activate the existing single instance; a
+        // disposing form never resurrects it. Opening / saving / cancelling
+        // never queries.
+        public void OpenThemeDialog()
         {
-            // UX015: no-owner call keeps the legacy primary-screen default.
-            OpenSettings(null);
+            OpenThemeDialog(null);
         }
 
-        // UX015: the caller supplies the window that OWNS the modal — the
-        // details panel when opened from its header, the floating window from
-        // the circle / tray. The owner decides the dialog's screen, DPI and
-        // work area, and where focus returns when it closes. Repeat requests
-        // only activate the existing single instance; a disposing form never
-        // resurrects it. Opening / saving / cancelling never queries.
-        public void OpenSettings(IWin32Window owner)
+        public void OpenThemeDialog(IWin32Window owner)
         {
             if (IsDisposed || Disposing) return;
-            if (_settingsForm != null && !_settingsForm.IsDisposed)
+            if (_themeDialog != null && !_themeDialog.IsDisposed)
             {
-                try { _settingsForm.Activate(); } catch (Exception) { }
+                try { _themeDialog.Activate(); } catch (Exception) { }
                 return;
             }
-            List<FloatingEntry> candidates = FloatingSelection.SelectableCandidates(_entries);
             Screen scr = null;
             try
             {
@@ -211,34 +211,27 @@ namespace ArkLeft
             }
             catch (Exception) { }
             if (scr == null) scr = Screen.PrimaryScreen ?? Screen.AllScreens[0];
-            FloatingSettingsForm dlg = new FloatingSettingsForm(candidates, _selected,
-                _save, DpiUtil.GetScale(scr), scr.WorkingArea,
+            ThemeDialogForm dlg = new ThemeDialogForm(DpiUtil.GetScale(scr), scr.WorkingArea,
                 ApplyThemePreview, SaveTheme, _accentIndex, _darkMode);
-            _settingsForm = dlg;
+            _themeDialog = dlg;
             try
             {
-                DialogResult r = dlg.ShowDialog(owner ?? (IWin32Window)this);
-                if (r == DialogResult.OK && dlg.ResultSettings != null)
-                {
-                    _stored = dlg.ResultSettings;
-                    _selected = _stored;
-                    UpdateCircleDisplay();
-                }
+                dlg.ShowDialog(owner ?? (IWin32Window)this);
             }
             finally
             {
-                _settingsForm = null;
+                _themeDialog = null;
                 try { dlg.Dispose(); } catch (Exception) { }
             }
         }
 
-        public void CloseSettings()
+        public void CloseThemeDialog()
         {
-            if (_settingsForm != null && !_settingsForm.IsDisposed)
+            if (_themeDialog != null && !_themeDialog.IsDisposed)
             {
-                try { _settingsForm.Close(); } catch (Exception) { }
+                try { _themeDialog.Close(); } catch (Exception) { }
             }
-            _settingsForm = null;
+            _themeDialog = null;
         }
 
         // ---- v0.24 UX029 theme ----
@@ -315,23 +308,23 @@ namespace ArkLeft
         {
             get { return _circle; }
         }
-        // UX015: true while the single settings modal is up. TrayApp decides
+        // v0.24 UX029: true while the single theme dialog is up. TrayApp decides
         // from this when its details-suppression window may really end: a
         // repeat request that merely activated the dialog must not end it.
-        public bool SettingsModalOpen
+        public bool ThemeDialogOpen
         {
-            get { return _settingsForm != null && !_settingsForm.IsDisposed; }
+            get { return _themeDialog != null && !_themeDialog.IsDisposed; }
         }
-        internal bool SettingsOpenForTest
+        internal bool ThemeDialogOpenForTest
         {
-            get { return SettingsModalOpen; }
+            get { return ThemeDialogOpen; }
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                CloseSettings();
+                CloseThemeDialog();
                 // Release every queued 悬浮内容 item before the menus go, so no
                 // removed item survives Dispose (a late posted drain then sees an
                 // empty queue and exits safely).
@@ -340,6 +333,7 @@ namespace ArkLeft
                 if (_lockItem != null) _lockItem.Dispose();
                 if (_motionItem != null) _motionItem.Dispose();
                 if (_homeItem != null) _homeItem.Dispose();
+                if (_themeItem != null) _themeItem.Dispose();
                 if (_circle != null) { try { _circle.Dispose(); } catch (Exception) { } }
             }
             base.Dispose(disposing);

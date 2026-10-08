@@ -9,25 +9,13 @@ namespace ArkLeft
     {
         private double _scale = 1.0;
         private FlowLayoutPanel _content;
-        private ToolTip _tip;
-        // UX022: the copy feedback owns a SEPARATE ToolTip so its transient
-        // Show() can never overwrite the cards' stored update-time text.
-        private ToolTip _feedbackTip;
-        // UX022 v0.14: card-only popup. With the fixed header / footer removed,
-        // the four details actions live in a details-local context menu on the
-        // cards (they reuse the exact old button handlers; see BuildDetailsMenu).
-        private ContextMenuStrip _detailsMenu;
-        private ToolStripMenuItem _miRefresh;
-        private ToolStripMenuItem _miCopy;
-        private ToolStripMenuItem _miSettings;
-        private ToolStripMenuItem _miClose;
+        // UX022 v0.14: card-only popup. The details panel has no local context
+        // menu (the card right-click menu was removed in v0.24 UX029) and no
+        // tooltips; the shared circle / tray menu owns settings / theme.
         // UX022: view-level status shown compactly INSIDE the first card
         // (stale / cache / identity-unknown); null when everything is fresh.
         private string _statusNote;
         private bool _statusStrong;
-        // UX022: copy feedback is a short visible tooltip; the text is kept
-        // for offline assertions and cleared by the one-shot timer.
-        private string _copyFeedbackText;
         // UX022: set when the fitted size actually changed while visible; the
         // owner re-anchors the window against the CURRENT circle.
         private bool _pendingReposition;
@@ -53,11 +41,6 @@ namespace ArkLeft
         private Control _dialogFocus;
         private Point _dialogScroll;
         private System.Windows.Forms.Timer _clock;
-        // UX019 v0.11: footer "复制摘要" clipboard writing is injectable so
-        // offline tests record instead of touching the real user clipboard.
-        private Action<string> _clipboardSet = new Action<string>(
-            delegate(string text) { Clipboard.SetText(text); });
-        private System.Windows.Forms.Timer _copyFeedback;
         private bool _reduceMotion;
 
         // Cached fonts are created once (per style) and reused across layouts to
@@ -66,8 +49,6 @@ namespace ArkLeft
         private Panel _introCard;   // the actually-rendered first-run banner (or null)
 
         public event EventHandler RefreshRequested;
-        public event EventHandler CancelRequested;
-        public event EventHandler SettingsRequested;
         public event EventHandler LoginRequested;
 
         public bool AllowClose
@@ -98,8 +79,6 @@ namespace ArkLeft
 
             _scale = DpiUtil.GetScale(Screen.PrimaryScreen);
 
-            _tip = new ToolTip();
-
             _content = new FlowLayoutPanel();
             _content.Dock = DockStyle.Fill;
             _content.FlowDirection = FlowDirection.TopDown;
@@ -112,8 +91,6 @@ namespace ArkLeft
             _content.Padding = new Padding(0);
 
             Controls.Add(_content);
-
-            BuildDetailsMenu();
 
             _clock = new System.Windows.Forms.Timer();
             _clock.Interval = 15000; // local time labels only; never queries
@@ -141,18 +118,29 @@ namespace ArkLeft
                 e.Graphics.DrawRectangle(pen, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
         }
 
+        // UX022: a refresh that changes the displayed values replaces the card
+        // controls (ReplaceContent) and re-fits the window (ClientSize). The
+        // form double-buffers only its OWN painting; the card panels are
+        // separate child windows, so their erase / repaint during a rebuild or
+        // resize flashes. WS_EX_COMPOSITED composites this window AND its child
+        // windows off-screen in one pass, removing the visible flicker without
+        // changing any layout or display semantics.
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
+                return cp;
+            }
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
                 if (_clock != null) { try { _clock.Stop(); _clock.Dispose(); } catch (Exception) { } }
                 if (_hideTimer != null) { try { _hideTimer.Stop(); _hideTimer.Dispose(); } catch (Exception) { } }
-                if (_copyFeedback != null) { try { _copyFeedback.Stop(); _copyFeedback.Dispose(); } catch (Exception) { } }
-                if (_tip != null) { try { _tip.Dispose(); } catch (Exception) { } }
-                if (_feedbackTip != null) { try { _feedbackTip.Dispose(); } catch (Exception) { } _feedbackTip = null; }
-                // UX022: the details-local menu and the window Region are both
-                // owned here — released deterministically (no GDI / menu leak).
-                if (_detailsMenu != null) { try { _detailsMenu.Dispose(); } catch (Exception) { } _detailsMenu = null; }
                 if (Region != null) { try { Region.Dispose(); Region = null; } catch (Exception) { } }
                 foreach (Font f in _fontCache.Values)
                 {

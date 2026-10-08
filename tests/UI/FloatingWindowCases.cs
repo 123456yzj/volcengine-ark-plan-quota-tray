@@ -16,38 +16,11 @@ namespace ArkLeft.Tests
             return false;
         }
 
-        private static FloatingSettingsForm FindOpenSettings()
+        private static ThemeDialogForm FindOpenThemeDialog()
         {
             foreach (System.Windows.Forms.Form f in System.Windows.Forms.Application.OpenForms)
-                if (f is FloatingSettingsForm) return (FloatingSettingsForm)f;
+                if (f is ThemeDialogForm) return (ThemeDialogForm)f;
             return null;
-        }
-
-        private static bool ContainsItem(FloatingSettingsForm dlg, string text)
-        {
-            return IndexOfItem(dlg, text) >= 0;
-        }
-
-        private static int IndexOfItem(FloatingSettingsForm dlg, string text)
-        {
-            for (int i = 0; i < dlg.CandidateCountForTest; i++)
-            {
-                string s = dlg.CandidateTextForTest(i);
-                if (s != null && s.Contains(text)) return i;
-            }
-            return -1;
-        }
-
-        // UX022: feedback is a recorded text cleared by the one-shot timer.
-        private static void WaitForCopyRestore(PopupForm form,
-            System.Windows.Forms.Timer timer)
-        {
-            DateTime deadline = DateTime.UtcNow.AddSeconds(3);
-            while (form.CopyFeedbackTextForTest != null && DateTime.UtcNow < deadline)
-            {
-                System.Windows.Forms.Application.DoEvents();
-                System.Threading.Thread.Sleep(10);
-            }
         }
 
         private static System.Windows.Forms.Control FindStatusLabelForTest(

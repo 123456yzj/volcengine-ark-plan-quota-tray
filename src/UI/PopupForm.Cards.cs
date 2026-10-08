@@ -188,7 +188,6 @@ namespace ArkLeft
                 int updateWidth = S(112), refreshWidth = S(42), headerGap = S(6);
                 int titleWidth = Math.Max(1, innerW - updateWidth - refreshWidth - headerGap * 2);
                 title.SetBounds(pad, y, titleWidth, titleHeight);
-                _tip.SetToolTip(title, ProductTitle(pq));
                 card.Controls.Add(title);
 
                 Label updated = new Label { Name = "arkUpdateTime", AutoSize = false,
@@ -288,7 +287,6 @@ namespace ArkLeft
                 pct.Font = F(11f, true);
                 pct.ForeColor = TextDark;
                 pct.Text = PercentFormat.Remaining(effective.RemainingPercent);
-                _tip.SetToolTip(pct, PercentFormat.RemainingForBar(effective.RemainingPercent));
             }
             else
             {
@@ -336,8 +334,6 @@ namespace ArkLeft
             amount.Text = FitAmountText(fullAmount, effective.AmountKnown
                 ? effective.RemainingAmount : double.NaN, amountWidth, amount.Font);
             amount.BackColor = blockColor;
-            if (amount.Text != fullAmount)
-                _tip.SetToolTip(amount, fullAmount);
             amount.SetBounds(amountStart, y, amountWidth, S(20));
             card.Controls.Add(amount);
             y += S(20);

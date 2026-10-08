@@ -526,9 +526,9 @@ namespace ArkLeft.Tests
                 { queries++; return System.Threading.Tasks.Task.FromResult(new QueryOutcome()); }))
             {
                 app.HideDetailsForTest();
-                Check("prefs2.trayMenuCount", app.MenuItemCountForTest, 4);
+                Check("prefs2.trayMenuCount", app.MenuItemCountForTest, 5);
                 Check("prefs2.traySettingsCount", app.MenuSettingsCountForTest, 3);
-                Check("prefs2.trayToggleShifted", app.MenuTextForTest(1), "隐藏悬浮窗");
+                Check("prefs2.trayToggleShifted", app.MenuTextForTest(2), "隐藏悬浮窗");
                 Check("prefs2.trayMotionDefaultUnchecked", app.MenuMotionCheckedForTest, false);
                 Check("prefs2.pollBaseUntouched", app.PollIntervalForTest, 300000);
                 app.PerformMenuMotionForTest(); // 减少动画

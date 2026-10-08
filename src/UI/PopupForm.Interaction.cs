@@ -15,17 +15,34 @@ namespace ArkLeft
 
         // v0.24 UX029: re-derive the details surface after a theme change. The
         // cards bake palette colors at build time, so the view is rebuilt with
-        // the CURRENT snapshot; the outer frame / content background and the
-        // details-local menu are restyled too. Zero query; the same snapshot is
-        // kept (a null view stays on the empty/message shape).
+        // the CURRENT snapshot; the outer frame / content background are
+        // restyled too. Zero query; the same snapshot is kept (a null view
+        // stays on the empty/message shape).
         public void ApplyTheme()
         {
+            Control focus = _dialogOpen ? _dialogFocus : ActiveControl;
+            System.Collections.Generic.List<int> focusPath = new System.Collections.Generic.List<int>();
+            for (Control c = focus; c != null && c != this; c = c.Parent)
+            {
+                if (c.Parent == null) { focusPath.Clear(); break; }
+                focusPath.Insert(0, c.Parent.Controls.IndexOf(c));
+            }
             BackColor = ContentBg;
             if (_content != null) _content.BackColor = ContentBg;
-            if (_detailsMenu != null) UiStyle.StyleMenu(_detailsMenu);
             _displayKey = null; // force a real rebuild with the new palette
             if (_view != null) ApplyModelView(_view);
             else Invalidate(true);
+            Control replacement = this;
+            foreach (int index in focusPath)
+            {
+                if (index < 0 || index >= replacement.Controls.Count) { replacement = null; break; }
+                replacement = replacement.Controls[index];
+            }
+            if (replacement != null && replacement != this)
+            {
+                if (_dialogOpen) _dialogFocus = replacement;
+                else if (replacement.CanFocus) replacement.Focus();
+            }
         }
 
         private void SetMotionAllowed(bool allowed)
@@ -52,55 +69,6 @@ namespace ArkLeft
                 if (bar != null) bar.ReduceMotion = reduce;
                 if (child.HasChildren) SetReduceMotion(child, reduce);
             }
-        }
-
-        // UX022 v0.14: with the fixed header / footer removed, the details'
-        // four actions live in a details-local context menu on the cards. It
-        // reuses the EXACT old handlers — refresh (single-flight via
-        // RefreshRequested), copy (snapshot-only formatter via
-        // OnCopySummaryClicked), settings (single shared modal path via
-        // SettingsRequested) and close (HidePanel) — so there is no new query
-        // source and no second clipboard write path. Opening the menu is zero
-        // query and suppresses focus-loss hiding; closing re-enables it. The
-        // copy action is enabled only while a snapshot is rendered. The shared
-        // circle / tray menu (8 items) is untouched.
-        private void BuildDetailsMenu()
-        {
-            _detailsMenu = new ContextMenuStrip();
-            _detailsMenu.ShowItemToolTips = true;
-
-            _miRefresh = new ToolStripMenuItem("刷新");
-            _miRefresh.AccessibleName = "刷新额度";
-            _miRefresh.ToolTipText = "重新查询当前额度（Ctrl+R）";
-            _miRefresh.Click += delegate { OnRefreshRequested(); };
-
-            _miCopy = new ToolStripMenuItem("复制摘要");
-            _miCopy.AccessibleName = "复制摘要";
-            _miCopy.ToolTipText = "复制当前额度摘要到剪贴板（Ctrl+C）";
-            _miCopy.Enabled = false;   // enabled once a snapshot is rendered
-            _miCopy.Click += delegate { OnCopySummaryClicked(); };
-
-            _miSettings = new ToolStripMenuItem("设置");
-            _miSettings.AccessibleName = "设置悬浮窗显示";
-            _miSettings.Click += delegate { OnSettingsRequested(); };
-
-            _miClose = new ToolStripMenuItem("关闭");
-            _miClose.AccessibleName = "关闭面板（不退出）";
-            _miClose.Click += delegate { HidePanel(); };
-
-            _detailsMenu.Items.AddRange(new ToolStripItem[]
-                { _miRefresh, _miCopy, _miSettings, _miClose });
-            UiStyle.StyleMenu(_detailsMenu);
-
-            _detailsMenu.Opening += delegate
-            {
-                _miCopy.Enabled = _view != null && _view.Data != null;
-                _menuOpen = true;
-                _hide.Cancel();
-                _hideTimer.Stop();
-            };
-            _detailsMenu.Closed += delegate { _menuOpen = false; };
-            _content.ContextMenuStrip = _detailsMenu;
         }
 
         // ---- visibility ----
@@ -308,16 +276,12 @@ namespace ArkLeft
             if (e.KeyCode == Keys.Escape) HidePanel();
         }
 
-        // UX021 v0.13: details-local accelerators. Only the two exact combos
-        // Ctrl+R and Ctrl+C are recognized, and only while the details are
-        // visible, enabled and contain keyboard focus with no settings modal
-        // or shared menu open. Both reuse the exact button click paths —
-        // single-flight refresh (a pending query is never queued) and the
-        // snapshot-only copy with its fixed safe strings — so there is no new
-        // query source and no second clipboard write path. With no snapshot,
-        // Ctrl+C is still consumed but writes nothing and never queries.
-        // Everything else (Ctrl+Shift / Ctrl+Alt variants, Esc, hidden or
-        // unfocused states, modal / menu open) falls through to base
+        // v0.24 UX029: details-local accelerator. Only the exact Ctrl+R combo is
+        // recognized, and only while the details are visible, enabled and
+        // contain keyboard focus with no settings modal or shared menu open. It
+        // reuses the exact refresh path (single-flight; a pending query is never
+        // queued). Everything else (Ctrl+Shift / Ctrl+Alt variants, Esc, hidden
+        // or unfocused states, modal / menu open) falls through to base
         // processing; no global hotkey and no input injection is involved.
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
@@ -327,11 +291,6 @@ namespace ArkLeft
                 if (keyData == (Keys.Control | Keys.R))
                 {
                     OnRefreshRequested();   // single-flight; pending never queues
-                    return true;
-                }
-                if (keyData == (Keys.Control | Keys.C))
-                {
-                    OnCopySummaryClicked(); // no snapshot: guarded, writes nothing
                     return true;
                 }
             }
@@ -354,105 +313,22 @@ namespace ArkLeft
             if (RefreshRequested != null) RefreshRequested(this, EventArgs.Empty);
         }
 
-        private void OnCancelRequested()
-        {
-            if (CancelRequested != null) CancelRequested(this, EventArgs.Empty);
-        }
-
-        private void OnSettingsRequested()
-        {
-            if (SettingsRequested != null) SettingsRequested(this, EventArgs.Empty);
-        }
-
-        // UX019: the ONLY clipboard write path, invoked strictly from the
-        // explicit copy action (since UX022 the details-local menu item; the
-        // old footer button was removed with the chrome) and — since UX021
-        // v0.13 — the details-local
-        // Ctrl+C accelerator (both explicit user actions; auto refresh / open
-        // / render never copy). A clipboard failure shows a short fixed inline
-        // "复制失败" as a visible short tooltip (never a blocking dialog) and
-        // the user can simply retry.
-        private void OnCopySummaryClicked()
-        {
-            if (_view == null || _view.Data == null) return;   // disabled guard
-            if (_copyFeedback != null && _copyFeedback.Enabled) _copyFeedback.Stop();
-            string summary = null;
-            try { summary = QuotaSummary.Build(_view); }
-            catch (Exception) { ShowCopyFeedback("复制失败"); return; }
-            if (string.IsNullOrEmpty(summary)) return;
-            try { _clipboardSet(summary); ShowCopyFeedback("已复制"); }
-            catch (Exception) { ShowCopyFeedback("复制失败"); }
-        }
-
-        // UX022 v0.14: copy feedback is a short VISIBLE non-blocking tooltip
-        // over the cards ("已复制" / "复制失败", ~2s) — there is no footer
-        // button text anymore. It never overwrites an error card, never
-        // contains raw upstream text and never queries. The one-shot timer
-        // clears the recorded state; stopped and disposed deterministically.
-        private void ShowCopyFeedback(string text)
-        {
-            _copyFeedbackText = text;
-            try
-            {
-                Control anchor = _content.Controls.Count > 0
-                    ? _content.Controls[0] : (Control)_content;
-                if (_feedbackTip == null) _feedbackTip = new ToolTip();
-                _feedbackTip.Show(text, anchor,
-                    Math.Max(4, anchor.Width - S(90)), S(8), 2000);
-            }
-            catch (Exception) { }
-            if (_copyFeedback == null)
-            {
-                _copyFeedback = new System.Windows.Forms.Timer();
-                _copyFeedback.Interval = 2000;
-                _copyFeedback.Tick += delegate
-                {
-                    _copyFeedback.Stop();
-                    _copyFeedbackText = null;
-                };
-            }
-            _copyFeedback.Start();
-        }
-
-        // ---- clipboard / guide (local actions, no network) ----
-
-        private void CopyLoginCommand()
-        {
-            try
-            {
-                Clipboard.SetText("arkcli auth login volc-sso");
-                // UX022: no footer note line anymore — the action result is a
-                // short visible non-blocking tooltip (never a dialog).
-                ShowCopyFeedback("已复制登录命令，请在终端粘贴执行。");
-            }
-            catch (Exception)
-            {
-                ShowCopyFeedback("剪贴板被占用，复制失败，请手动执行：arkcli auth login volc-sso");
-            }
-        }
+        // ---- guide (local action, no network) ----
 
         private void OpenGuide()
         {
             try
             {
                 string path = TrayApp.GuidePath();
-                if (!System.IO.File.Exists(path))
-                {
-                    ShowCopyFeedback("未找到设置指南：" + path);
-                    return;
-                }
+                if (!System.IO.File.Exists(path)) return;
                 System.Diagnostics.ProcessStartInfo psi =
                     new System.Diagnostics.ProcessStartInfo();
                 psi.FileName = "notepad.exe";
                 psi.Arguments = "\"" + path + "\"";
                 psi.UseShellExecute = false;
                 System.Diagnostics.Process.Start(psi);
-                ShowCopyFeedback("已用记事本打开：" + path);
             }
-            catch (Exception)
-            {
-                ShowCopyFeedback("无法打开设置指南：" + TrayApp.GuidePath());
-            }
+            catch (Exception) { }
         }
     }
 }

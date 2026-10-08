@@ -43,15 +43,13 @@ namespace ArkLeft
                     // The message card sits inside the rectangular outer frame.
                     if (f.Region != null)
                         failures++;
-                    if (f.ContentCardCount != 1 || f.CopyMenuItemForTest.Enabled)
+                    if (f.ContentCardCount != 1)
                         failures++;
 
                     f.ForceRender(SyntheticSample.BuildLarge());
                     failures += AssertInside(f, wa, "large");
                     failures += AssertInnerControls(f, "large");
                     failures += AssertCardFit(f, "large");
-                    if (!f.CopyMenuItemForTest.Enabled)
-                        failures++;
                     TrySavePreview(f, "preview.png");
 
                     List<Control> stable = ControlTree(f.ContentForTest);
@@ -61,8 +59,8 @@ namespace ArkLeft
                     string time = f.UpdateTimeTextForTest;
                     f.BeginAuth(); f.ShowSlowHint(); f.ShowStageHint("正在检查登录状态");
                     failures += AssertSameControls(stable, ControlTree(f.ContentForTest), "waiting");
-                    if (!f.ContentForTest.Controls[0].Focused || f.ContentForTest.AutoScrollPosition != scroll
-                        || !f.RefreshMenuItemForTest.Enabled) failures++;
+                    if (!f.ContentForTest.Controls[0].Focused || f.ContentForTest.AutoScrollPosition != scroll)
+                        failures++;
                     QuotaSnapshot same = SyntheticSample.BuildLarge();
                     same.FetchedAt = same.FetchedAt.AddMinutes(10);
                     f.ForceRender(same);
@@ -272,8 +270,7 @@ namespace ArkLeft
         }
 
         // v0.14 UX022 card-only chrome: the popup has exactly ONE direct child
-        // (the card content), a details-local context menu with EXACTLY the
-        // four reused actions, and copy stays disabled without a snapshot.
+        // (the card content) and no details context menu.
         private static int AssertCardChrome(PopupForm f, string label)
         {
             int bad = 0;
@@ -283,17 +280,11 @@ namespace ArkLeft
                 bad++;
                 Console.Error.WriteLine(label + ": unexpected chrome (must be content-only)");
             }
-            if (f.DetailsMenuForTest == null || f.DetailsMenuForTest.Items.Count != 4
-                || f.RefreshMenuItemForTest == null || f.CopyMenuItemForTest == null
-                || f.SettingsMenuItemForTest == null || f.CloseMenuItemForTest == null)
+            foreach (Control c in ControlTree(f))
             {
+                if (c.ContextMenuStrip == null && c.ContextMenu == null) continue;
                 bad++;
-                Console.Error.WriteLine(label + ": details menu must have the 4 actions");
-            }
-            if (f.CopyMenuItemForTest != null && f.CopyMenuItemForTest.Enabled)
-            {
-                bad++;
-                Console.Error.WriteLine(label + ": copy enabled without snapshot");
+                Console.Error.WriteLine(label + ": unexpected details context menu");
             }
             return bad;
         }

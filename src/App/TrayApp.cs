@@ -28,6 +28,8 @@ namespace ArkLeft
         private ToolStripMenuItem _menuSettings;
         private ToolStripMenuItem _menuContent;
         private bool _menuSettingsDropDownRequested;
+        // v0.24 UX029: first-level 主题 item opening the standalone theme dialog.
+        private ToolStripMenuItem _menuTheme;
         // v0.8 UX016 fix: offline-observable intent counters for the failed
         // lock-save tray notification (no real NotifyIcon exists offline).
         private int _lockFailNotifyCount;
@@ -105,7 +107,9 @@ namespace ArkLeft
                 _form.HidePanel();
                 if (_menu != null) _menu.Close();
             };
-            _floating.SettingsRequested += delegate { OpenSettings(); };
+            // v0.24 UX029: a 主题 click on the default circle menu (used only when
+            // no shared menu is set) opens the same standalone theme dialog.
+            _floating.ThemeRequested += delegate { OpenTheme(); };
             _floating.ExitRequested += delegate { ExitApp(); };
             // v0.8 UX016 fix: bound right after _floating exists, before any
             // toggle can happen; the handler is safe both before _notify is
@@ -135,13 +139,6 @@ namespace ArkLeft
             _poll.Interval = SnapshotController.PollIntervalMs;
             _poll.Tick += async delegate { await _controller.Poll(); };
             _form.RefreshRequested += delegate { StartRefresh(); };
-            // v0.6 UX015 / v0.14 UX022: the details' settings action (now the
-            // card context-menu item; the header button was removed with the
-            // chrome) routes to the SAME single settings path as the circle /
-            // tray menu (zero query; the modal is guarded inside
-            // FloatingQuotaForm). No query, no change to the details timer on
-            // return.
-            _form.SettingsRequested += delegate { OpenSettings(); };
             _form.LoginRequested += async delegate { await Login(); };
             // v0.5 UX013: the real circle forwards its own VisibleChanged (the
             // wrapper's 1x1 window visibility never changes), and the details
@@ -182,6 +179,10 @@ namespace ArkLeft
             _menuHome = new ToolStripMenuItem("悬浮窗归位", null,
                 delegate { RepositionFloatingHome(); });
             _menuToggle = new ToolStripMenuItem("隐藏悬浮窗", null, delegate { ToggleFloating(); });
+            // v0.24 UX029: first-level 主题 opens the standalone theme dialog
+            // (accent preset + dark content surface); zero query. The 设置
+            // submenu below keeps 悬浮内容 and the account actions.
+            _menuTheme = new ToolStripMenuItem("主题", null, delegate { OpenTheme(); });
             // Explicit native side expansion on click (never a modal).
             _menuSettings.Click += delegate
             {
@@ -203,7 +204,9 @@ namespace ArkLeft
                 async delegate { await Login(); });
             _menuSettings.DropDownItems.Add(_menuLogout);
             _menuSettings.DropDownItems.Add(_menuLogin);
-            _menu.Items.Insert(2, new ToolStripMenuItem("关于 / 诊断", null, delegate { ShowAboutDiagnostics(); }));
+            // Final first-level order: 设置、主题、隐藏悬浮窗、关于 / 诊断、退出。
+            _menu.Items.Insert(1, _menuTheme);
+            _menu.Items.Insert(3, new ToolStripMenuItem("关于 / 诊断", null, delegate { ShowAboutDiagnostics(); }));
             UiStyle.StyleMenu(_menu);
             _floating.SetContextMenuStrip(_menu);
             UiStyle.AttachFloatingMenu(_menu, _menuSettings, _menuContent,
@@ -371,7 +374,7 @@ namespace ArkLeft
             if (_notify != null) _notify.Visible = false;
             if (_floating != null)
             {
-                _floating.CloseSettings();
+                _floating.CloseThemeDialog();
                 _floating.AllowClose = true;
                 try { _floating.Dispose(); } catch (Exception) { }
             }
@@ -400,6 +403,7 @@ namespace ArkLeft
                 if (_menuLock != null) _menuLock.Dispose();
                 if (_menuMotion != null) _menuMotion.Dispose();
                 if (_menuHome != null) _menuHome.Dispose();
+                if (_menuTheme != null) _menuTheme.Dispose();
                 try { if (_trayIcon != null) _trayIcon.Dispose(); } catch (Exception) { }
                 try { if (_direct != null) _direct.Dispose(); } catch (Exception) { }
                 try { if (_form != null) _form.Dispose(); } catch (Exception) { }

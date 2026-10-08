@@ -67,22 +67,13 @@ namespace ArkLeft
             ShowDetails();
         }
 
-        // Single shared settings entry for the circle right-click menu, the tray
-        // menu and the details-header button. All three use the same
-        // single-instance modal inside FloatingQuotaForm (a repeat call
-        // activates the existing dialog, never stacks a second one). While the
-        // modal is up the details panel's focus-loss hide is suppressed, so
-        // returning from the modal never accidentally closes the details.
-        // UX015: the visible details panel OWNS the modal (its screen decides
-        // DPI / work area, and focus returns to it); otherwise the REAL circle
-        // surface owns it (screen / DPI follow the circle — the wrapper form
-        // itself is a hidden 1x1 window). With neither visible nothing is
-        // forced open. The
-        // release is guarded: a repeat request that arrives while the modal is
-        // already up returns immediately after activating it — its finally must
-        // NOT end the suppression window while the first request is still
-        // blocked inside ShowDialog.
-        private void OpenSettings()
+        // v0.24 UX029: the first-level 主题 menu item opens the single theme
+        // dialog (accent preset + dark content surface) owned by the visible
+        // details panel, else the REAL circle surface (screen / DPI follow the
+        // circle), else the floating wrapper. A repeat call activates the
+        // existing dialog, never stacks a second one. While the modal is up the
+        // details panel's focus-loss hide is suppressed. Zero query.
+        private void OpenTheme()
         {
             IWin32Window owner;
             if (_form.Visible) owner = _form;
@@ -91,11 +82,11 @@ namespace ArkLeft
             if (_form.Visible) _form.SetDialogOpen(true);
             try
             {
-                _floating.OpenSettings(owner);
+                _floating.OpenThemeDialog(owner);
             }
             finally
             {
-                if (!_floating.SettingsModalOpen) _form.SetDialogOpen(false);
+                if (!_floating.ThemeDialogOpen) _form.SetDialogOpen(false);
             }
         }
 
@@ -130,7 +121,7 @@ namespace ArkLeft
         private void RepositionFloatingHome()
         {
             if (_floating == null || _floating.IsDisposed) return;
-            if (_floating.SettingsModalOpen) return;
+            if (_floating.ThemeDialogOpen) return;
             if (_form != null && _form.Visible) _form.HidePanel();
             try { _floating.RestoreAfterDetails(); } catch (Exception) { }
             _floating.RepositionCircleHome();
